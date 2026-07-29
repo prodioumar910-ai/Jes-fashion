@@ -26,11 +26,11 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAdminModal }) => {
             <div className="flex items-center gap-3">
               <div className="flex-shrink-0 flex items-center justify-center">
                 <img
-                  src="https://lh3.googleusercontent.com/d/1V8PJ5NcqlcZVrjCEy5id2vU0vCAn-Ivs"
+                  src="https://drive.google.com/thumbnail?id=1V8PJ5NcqlcZVrjCEy5id2vU0vCAn-Ivs&sz=w500"
                   alt="Logo Jes Fashion"
                   onError={(e) => {
                     const img = e.currentTarget;
-                    img.src = "https://drive.google.com/thumbnail?id=1V8PJ5NcqlcZVrjCEy5id2vU0vCAn-Ivs&sz=w500";
+                    img.src = "https://lh3.googleusercontent.com/d/1V8PJ5NcqlcZVrjCEy5id2vU0vCAn-Ivs";
                   }}
                   referrerPolicy="no-referrer"
                   className="h-12 w-auto object-contain"

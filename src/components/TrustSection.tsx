@@ -1,27 +1,18 @@
 import React, { useEffect } from 'react';
 import { TRUSTED_CLIENTS } from '../data/products';
 import { Heart } from 'lucide-react';
+import { OptimizedImage, getFastImageUrl } from './OptimizedImage';
 
 interface TrustSectionProps {
   onSelectGownRef: (gownRef: string, imageUrl?: string) => void;
 }
-
-// Convert Google Drive links to Google's ultra-fast thumbnail CDN (w800 for Trust Section)
-const getFastTrustUrl = (url: string) => {
-  if (!url) return url;
-  const match = url.match(/d\/([a-zA-Z0-9_-]+)/) || url.match(/id=([a-zA-Z0-9_-]+)/);
-  if (match && match[1]) {
-    return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w800`;
-  }
-  return url;
-};
 
 export const TrustSection: React.FC<TrustSectionProps> = ({ onSelectGownRef }) => {
   // Preload all testimonial images on mount for zero-lag marquee animation
   useEffect(() => {
     TRUSTED_CLIENTS.forEach((client) => {
       const img = new Image();
-      img.src = getFastTrustUrl(client.imageUrl);
+      img.src = getFastImageUrl(client.imageUrl, 'catalog');
     });
   }, []);
 
@@ -59,8 +50,6 @@ export const TrustSection: React.FC<TrustSectionProps> = ({ onSelectGownRef }) =
         {/* Marquee Track moving Left to Right (animate-marquee-ltr) */}
         <div className="animate-marquee-ltr flex items-center gap-6">
           {marqueeItems.map((client, idx) => {
-            const fastUrl = getFastTrustUrl(client.imageUrl);
-
             return (
               <div
                 key={`${client.id}-${idx}`}
@@ -69,18 +58,17 @@ export const TrustSection: React.FC<TrustSectionProps> = ({ onSelectGownRef }) =
               >
                 {/* Image Container taking 100% full frame */}
                 <div className="relative h-[480px] sm:h-[560px] md:h-[620px] rounded-xl overflow-hidden mb-3 bg-neutral-900">
-                  <img
-                    src={fastUrl}
+                  <OptimizedImage
+                    rawUrl={client.imageUrl}
+                    imageSize="catalog"
                     alt={client.name}
                     loading={idx < 4 ? 'eager' : 'lazy'}
-                    decoding="async"
                     fetchPriority={idx < 4 ? 'high' : 'low'}
-                    onError={(e) => handleImageError(e, client.imageUrl)}
-                    referrerPolicy="no-referrer"
                     className="w-full h-full object-cover object-top sm:object-center group-hover:scale-105 transition-transform duration-700"
+                    containerClassName="w-full h-full"
                   />
                   {/* Subtle hover overlay button */}
-                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-4">
+                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-4 z-20">
                     <span className="btn-gold-foil px-5 py-2.5 text-xs font-black uppercase tracking-wider shadow-lg rounded-full text-black">
                       Voir le modèle
                     </span>

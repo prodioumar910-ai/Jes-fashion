@@ -3,6 +3,7 @@ import { Product } from '../types';
 import { ChevronLeft, ChevronRight, Hand } from 'lucide-react';
 import { ReservedBanner } from './ReservedBanner';
 import { getCustomizedProducts, subscribeToDatabase } from '../lib/database';
+import { OptimizedImage, getFastImageUrl } from './OptimizedImage';
 
 interface ModelsCatalogProps {
   onSelectProduct: (product: Product) => void;
@@ -58,25 +59,12 @@ export const ModelsCatalog: React.FC<ModelsCatalogProps> = ({
     ];
     criticalProducts.forEach((p) => {
       const img = new Image();
-      img.src = getFastCatalogUrl(p.imageUrl);
+      img.src = getFastImageUrl(p.imageUrl, 'catalog');
     });
   }, []);
 
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, rawUrl: string) => {
-    const img = e.currentTarget;
-    const match = rawUrl.match(/d\/([a-zA-Z0-9_-]+)/) || rawUrl.match(/id=([a-zA-Z0-9_-]+)/);
-    if (match && match[1]) {
-      const fileId = match[1];
-      const fallback = `https://lh3.googleusercontent.com/d/${fileId}`;
-      if (img.src !== fallback) {
-        img.src = fallback;
-      }
-    }
-  };
-
   // Single product card taking 100% full image frame
   const renderProductCard = (product: Product, indexInRow: number) => {
-    const fastUrl = getFastCatalogUrl(product.imageUrl);
     const isReserved = reservedProductIds.includes(product.id);
 
     return (
@@ -87,15 +75,14 @@ export const ModelsCatalog: React.FC<ModelsCatalogProps> = ({
       >
         {/* Tall full-frame image container for head-to-toe dress visibility */}
         <div className="relative h-[580px] sm:h-[680px] md:h-[780px] lg:h-[840px] overflow-hidden bg-neutral-950">
-          <img
-            src={fastUrl}
+          <OptimizedImage
+            rawUrl={product.imageUrl}
+            imageSize="catalog"
             alt={product.title}
             loading={indexInRow < 3 ? 'eager' : 'lazy'}
-            decoding="async"
             fetchPriority={indexInRow < 3 ? 'high' : 'low'}
-            onError={(e) => handleImageError(e, product.imageUrl)}
-            referrerPolicy="no-referrer"
             className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-700"
+            containerClassName="w-full h-full"
           />
 
           {/* RÉSERVEZ Golden Ribbon Banner if product is reserved */}

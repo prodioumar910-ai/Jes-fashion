@@ -1,8 +1,8 @@
 import React from 'react';
 import { Sparkles } from 'lucide-react';
 
-const WA_CUSTOM_LOGO_PRIMARY = "https://lh3.googleusercontent.com/d/1S2LxSpNum9j-KJ6gDMrY2O--pQZGpl5B";
-const WA_CUSTOM_LOGO_FALLBACK = "https://drive.google.com/thumbnail?id=1S2LxSpNum9j-KJ6gDMrY2O--pQZGpl5B&sz=w500";
+const WA_CUSTOM_LOGO_PRIMARY = "https://drive.google.com/thumbnail?id=1S2LxSpNum9j-KJ6gDMrY2O--pQZGpl5B&sz=w500";
+const WA_CUSTOM_LOGO_FALLBACK = "https://lh3.googleusercontent.com/d/1S2LxSpNum9j-KJ6gDMrY2O--pQZGpl5B";
 
 export const FloatingWhatsApp: React.FC = () => {
   const handleLogoError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {

@@ -1,16 +1,16 @@
 import React from 'react';
 
-const LOGO_PRIMARY_URL = "https://lh3.googleusercontent.com/d/1V8PJ5NcqlcZVrjCEy5id2vU0vCAn-Ivs";
-const LOGO_ALT_URL = "https://drive.google.com/thumbnail?id=1V8PJ5NcqlcZVrjCEy5id2vU0vCAn-Ivs&sz=w500";
+const LOGO_PRIMARY_URL = "https://drive.google.com/thumbnail?id=1V8PJ5NcqlcZVrjCEy5id2vU0vCAn-Ivs&sz=w500";
+const LOGO_ALT_URL = "https://lh3.googleusercontent.com/d/1V8PJ5NcqlcZVrjCEy5id2vU0vCAn-Ivs";
 
-const WA_ICON_PRIMARY = "https://lh3.googleusercontent.com/d/1S2LxSpNum9j-KJ6gDMrY2O--pQZGpl5B";
-const WA_ICON_ALT = "https://drive.google.com/thumbnail?id=1S2LxSpNum9j-KJ6gDMrY2O--pQZGpl5B&sz=w500";
+const WA_ICON_PRIMARY = "https://drive.google.com/thumbnail?id=1S2LxSpNum9j-KJ6gDMrY2O--pQZGpl5B&sz=w500";
+const WA_ICON_ALT = "https://lh3.googleusercontent.com/d/1S2LxSpNum9j-KJ6gDMrY2O--pQZGpl5B";
 
-const TIKTOK_ICON_PRIMARY = "https://lh3.googleusercontent.com/d/1kmu-CUCd4phEMCprAS_DrBTzGIs1wopU";
-const TIKTOK_ICON_ALT = "https://drive.google.com/thumbnail?id=1kmu-CUCd4phEMCprAS_DrBTzGIs1wopU&sz=w500";
+const TIKTOK_ICON_PRIMARY = "https://drive.google.com/thumbnail?id=1kmu-CUCd4phEMCprAS_DrBTzGIs1wopU&sz=w500";
+const TIKTOK_ICON_ALT = "https://lh3.googleusercontent.com/d/1kmu-CUCd4phEMCprAS_DrBTzGIs1wopU";
 
-const SNAP_ICON_PRIMARY = "https://lh3.googleusercontent.com/d/17_cpbmS5rgQbjwm2Ba2Psph7LQxJXmBi";
-const SNAP_ICON_ALT = "https://drive.google.com/thumbnail?id=17_cpbmS5rgQbjwm2Ba2Psph7LQxJXmBi&sz=w500";
+const SNAP_ICON_PRIMARY = "https://drive.google.com/thumbnail?id=17_cpbmS5rgQbjwm2Ba2Psph7LQxJXmBi&sz=w500";
+const SNAP_ICON_ALT = "https://lh3.googleusercontent.com/d/17_cpbmS5rgQbjwm2Ba2Psph7LQxJXmBi";
 
 export const SocialsSection: React.FC = () => {
   const handleLogoError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {

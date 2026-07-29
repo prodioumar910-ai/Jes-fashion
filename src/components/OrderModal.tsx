@@ -3,6 +3,7 @@ import { Product } from '../types';
 import { X, Phone, User, CreditCard, ShieldCheck, Calendar, Tag } from 'lucide-react';
 import { ReservedBanner } from './ReservedBanner';
 import { addBookingRecord, getCustomizedProducts, reserveProductDirectly, confirmBookingRecord } from '../lib/database';
+import { OptimizedImage } from './OptimizedImage';
 
 interface OrderModalProps {
   product: Product | null;
@@ -178,13 +179,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           
           {/* 1. CLEAN PRODUCT IMAGE DISPLAY WITH RÉSERVEZ OVERLAY IF RESERVED */}
           <div className="relative w-full h-[440px] sm:h-[560px] rounded-2xl overflow-hidden bg-black flex items-center justify-center">
-            <img
-              src={getFastModalUrl(activeProduct.imageUrl)}
+            <OptimizedImage
+              rawUrl={activeProduct.imageUrl}
+              imageSize="hero"
               alt={activeProduct.title}
-              decoding="async"
-              onError={handleImageError}
-              referrerPolicy="no-referrer"
               className="w-full h-full object-contain object-center"
+              containerClassName="w-full h-full"
             />
 
             {/* Display RÉSERVEZ banner overlay if reserved */}

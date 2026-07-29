@@ -1,29 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { HERO_SLIDES } from '../data/products';
 import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
+import { OptimizedImage, getFastImageUrl } from './OptimizedImage';
 
 interface HeroCarouselProps {
   onOpenQuickOrder: () => void;
 }
 
-// Convert Google Drive links to Google's ultra-fast thumbnail CDN (w1200 for Hero)
-const getFastHeroUrl = (url: string) => {
-  if (!url) return url;
-  const match = url.match(/d\/([a-zA-Z0-9_-]+)/) || url.match(/id=([a-zA-Z0-9_-]+)/);
-  if (match && match[1]) {
-    return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1200`;
-  }
-  return url;
-};
-
 export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onOpenQuickOrder }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Preload all 5 hero images instantly on mount for zero-lag slide transitions
+  // Preload all hero images instantly on mount
   useEffect(() => {
     HERO_SLIDES.forEach((slide) => {
       const img = new Image();
-      img.src = getFastHeroUrl(slide.imageUrl);
+      img.src = getFastImageUrl(slide.imageUrl, 'hero');
     });
   }, []);
 
@@ -70,7 +61,6 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onOpenQuickOrder }) 
         
         {/* Background Images Slider - Images take 100% full frame without borders */}
         {HERO_SLIDES.map((slide, index) => {
-          const fastUrl = getFastHeroUrl(slide.imageUrl);
           return (
             <div
               key={slide.id}
@@ -78,14 +68,14 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onOpenQuickOrder }) 
                 index === currentIndex ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
               }`}
             >
-              <img
-                src={fastUrl}
+              <OptimizedImage
+                rawUrl={slide.imageUrl}
+                imageSize="hero"
                 alt={slide.title}
                 loading={index === 0 ? 'eager' : 'lazy'}
-                decoding="async"
-                onError={(e) => handleImageError(e, slide.imageUrl)}
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover object-center sm:object-top transition-transform duration-10000 ease-linear"
+                fetchPriority={index === 0 ? 'high' : 'low'}
+                className="w-full h-full object-cover object-center sm:object-top"
+                containerClassName="w-full h-full"
               />
             </div>
           );
