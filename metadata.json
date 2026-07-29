@@ -1,0 +1,6 @@
+{
+  "name": "Jes Fashion - Robes de Mariée Haute Couture",
+  "description": "Boutique en ligne haut de gamme de robes de mariée sur mesure. Modèles d'exception, commande facile sur WhatsApp, carrousels produits et localisation à Yirimadjo, Bamako.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
