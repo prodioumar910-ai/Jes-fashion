@@ -46,4 +46,11 @@ export interface FaqItem {
   question: string;
   answer: string;
   category: string;
+  whatsappCta?: string;
+  whatsappMessage?: string;
+  imageUrl?: string;
+  headerTitle?: string;
+  subTitle?: string;
+  phone?: string;
+  steps?: string[];
 }

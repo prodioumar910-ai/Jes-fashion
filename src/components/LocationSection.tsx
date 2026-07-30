@@ -38,30 +38,30 @@ export const LocationSection: React.FC = () => {
                   <Compass className="w-5 h-5 text-black flex-shrink-0 mt-0.5" />
                   <div>
                     <strong className="text-black block font-bold">Adresse Principale :</strong>
-                    <p className="text-neutral-800 text-xs font-medium mt-0.5">Badalabougou (Axe principal), Bamako - MALI</p>
+                    <p className="text-neutral-800 text-xs font-medium mt-0.5">Badalabougou près de l'ex 4ème arrondissement, Bamako- MALI</p>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3">
                   <Clock className="w-5 h-5 text-black flex-shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-black block font-bold">Horaires d'Ouverture :</strong>
-                    <p className="text-neutral-800 text-xs font-medium mt-0.5">Lundi au Samedi : 09h00 - 19h30</p>
-                    <p className="text-black text-xs font-bold italic">Dimanches : Sur Rendez-vous uniquement</p>
+                    <strong className="text-black block font-bold">Horaires d'ouverture :</strong>
+                    <p className="text-neutral-800 text-xs font-medium mt-0.5">Du lundi au Samedi: 09h00 à 18h00</p>
+                    <p className="text-neutral-800 text-xs font-medium mt-0.5">Dimanches: sur rendez-vous uniquement</p>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3">
                   <Phone className="w-5 h-5 text-black flex-shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-black block font-bold">Téléphone & WhatsApp :</strong>
+                    <strong className="text-black block font-bold">Téléphone & Whatsapp :</strong>
                     <a 
                       href="https://wa.me/22372568975" 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="text-black font-bold hover:underline text-xs font-mono"
                     >
-                      +223 72 56 89 75
+                      +223 72568975
                     </a>
                   </div>
                 </div>

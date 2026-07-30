@@ -36,7 +36,7 @@ export const TrustSection: React.FC<TrustSectionProps> = ({ onSelectGownRef }) =
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8 text-center relative z-10">
         <h2 className="text-3xl sm:text-4xl md:text-5xl font-serif font-black text-black tracking-tight">
-          Ils Nous Ont Fait Confiance
+          Elles nous ont fait confiance
         </h2>
       </div>
 

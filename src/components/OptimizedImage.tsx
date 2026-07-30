@@ -14,10 +14,7 @@ export const getFastImageUrl = (url: string, size: 'thumb' | 'catalog' | 'hero' 
   const match = url.match(/d\/([a-zA-Z0-9_-]+)/) || url.match(/id=([a-zA-Z0-9_-]+)/);
   if (match && match[1]) {
     const fileId = match[1];
-    let width = 800;
-    if (size === 'thumb' || size === 'avatar') width = 400;
-    if (size === 'hero') width = 1200;
-    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w${width}`;
+    return `https://lh3.googleusercontent.com/d/${fileId}`;
   }
   return url;
 };
@@ -28,8 +25,8 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
   alt,
   className = '',
   containerClassName = '',
-  loading = 'lazy',
-  fetchPriority = 'auto',
+  loading = 'eager',
+  fetchPriority = 'high',
   ...props
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -43,7 +40,7 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
     if (match && match[1]) {
       const fileId = match[1];
       if (errorCount === 0) {
-        const fallback1 = `https://lh3.googleusercontent.com/d/${fileId}`;
+        const fallback1 = `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
         if (img.src !== fallback1) {
           img.src = fallback1;
           setErrorCount(1);
@@ -60,10 +57,10 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
 
   return (
     <div className={`relative overflow-hidden w-full h-full ${containerClassName}`}>
-      {/* Animated Skeleton Shimmer Placeholder */}
+      {/* Background loading color */}
       {!isLoaded && (
-        <div className="absolute inset-0 bg-neutral-900 animate-pulse flex items-center justify-center z-10">
-          <div className="w-7 h-7 border-2 border-amber-400 border-t-transparent rounded-full animate-spin opacity-60" />
+        <div className="absolute inset-0 bg-neutral-900 flex items-center justify-center z-10">
+          <div className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin opacity-60" />
         </div>
       )}
       <img
@@ -76,7 +73,7 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
         onLoad={() => setIsLoaded(true)}
         onError={handleImageError}
         referrerPolicy="no-referrer"
-        className={`${className} transition-opacity duration-500 ease-out ${
+        className={`${className} transition-opacity duration-150 ease-out ${
           isLoaded ? 'opacity-100' : 'opacity-0'
         }`}
       />

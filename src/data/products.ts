@@ -600,39 +600,100 @@ export const PRODUCTS: Product[] = [
 // Section 6: FAQ
 export const FAQ_ITEMS: FaqItem[] = [
   {
+    id: 'faq-reservation',
+    category: 'Réservation & Commande',
+    question: "Comment réserver sa robe chez Jes Fashion ?",
+    answer: `RÉSERVER SA ROBE CHEZ JES FASHION EN 4 ÉTAPES !
++223 72 56 89 75
+Etape 1: choix de votre robe (princesse ou sirène)
+Etape 2: versement de 80%
+Etape 3: versement final à la veille du mariage
+Etape 4: livraison de la robe`,
+    imageUrl: "https://lh3.googleusercontent.com/d/1717nMKQ3EsMI9jyDTIy7XLx2WeZ1YXOJ",
+    headerTitle: "JES FASHION",
+    subTitle: "RÉSERVER SA ROBE CHEZ JES FASHION EN 4 ÉTAPES !",
+    phone: "+223 72 56 89 75",
+    steps: [
+      "Etape 1: choix de votre robe (princesse ou sirène)",
+      "Etape 2: versement de 80%",
+      "Etape 3: versement final à la veille du mariage",
+      "Etape 4: livraison de la robe"
+    ],
+    whatsappCta: "RÉSERVER MAINTENANT SUR WHATSAPP",
+    whatsappMessage: "Bonjour Jes Fashion, je souhaite réserver ma robe chez Jes Fashion."
+  },
+  {
     id: 'faq-1',
     category: 'Boutique & Essayages',
     question: "Comment puis-je essayer une robe dans votre boutique à Badalabougou ?",
-    answer: "Vous êtes la bienvenue dans notre atelier boutique situé à Badalabougou, Bamako ! Pour garantir un accueil personnalisé, nous vous conseillons de réserver votre créneau gratuit par téléphone au +223 72 56 89 75 ou via notre bouton WhatsApp."
+    answer: "Vous êtes la bienvenue dans notre atelier boutique situé à Badalabougou, Bamako ! Pour garantir un accueil personnalisé, nous vous conseillons de réserver votre créneau gratuit par téléphone au +223 72 56 89 75 ou via notre bouton WhatsApp.",
+    imageUrl: "https://lh3.googleusercontent.com/d/1zSJEVhO0r25NVZdJcQevpuWfzI-hRmhq",
+    headerTitle: "JES FASHION",
+    subTitle: "ESSAYAGES PRIVATIFS & BOUTIQUE À BADALABOUGOU",
+    phone: "+223 72 56 89 75"
   },
   {
     id: 'faq-2',
     category: 'Commande & Délais',
     question: "Quels sont les délais de confection pour une robe sur mesure ?",
-    answer: "Pour les confections sur-mesure Haute Couture, nous recommandons de passer commande 2 à 4 semaines avant la date de votre événement. Cependant, nous disposons également d'une collection prête à porter disponible immédiatement en boutique avec ajustements express."
+    answer: "Pour les confections sur-mesure Haute Couture, nous recommandons de passer commande 2 à 4 semaines avant la date de votre événement. Cependant, nous disposons également d'une collection prête à porter disponible immédiatement en boutique avec ajustements express.",
+    imageUrl: "https://lh3.googleusercontent.com/d/1SuLqz6mohw09zkiy4XZUNz1Yh05lUa7n",
+    headerTitle: "JES FASHION",
+    subTitle: "DÉLAIS DE CONFECTION HAUTE COUTURE",
+    phone: "+223 72 56 89 75"
   },
   {
     id: 'faq-3',
     category: 'Livraison',
     question: "Proposez-vous la livraison à Bamako, dans les régions du Mali et à l'international ?",
-    answer: "Oui ! Nous livrons en toute sécurité à Bamako (livraison à domicile par coursier VIP), dans toutes les régions du Mali (Kayes, Ségou, Sikasso, Mopti, etc.) ainsi qu'à l'international (France, Côte d'Ivoire, Sénégal, Gabon, etc.) via nos partenaires logistiques."
+    answer: "Oui ! Nous livrons en toute sécurité à Bamako (livraison à domicile par coursier VIP), dans toutes les régions du Mali (Kayes, Ségou, Sikasso, Mopti, etc.) ainsi qu'à l'international (France, Côte d'Ivoire, Sénégal, Gabon, etc.) via nos partenaires logistiques.",
+    imageUrl: "https://lh3.googleusercontent.com/d/1YqLh2s1qePwSFsJ2b7bYAMOQ_tmpXKPp",
+    headerTitle: "JES FASHION",
+    subTitle: "EXPÉDITION & LIVRAISON SÉCURISÉE",
+    phone: "+223 72 56 89 75"
   },
   {
     id: 'faq-4',
     category: 'Paiements',
     question: "Quels sont les modes de paiement acceptés chez Jes Fashion ?",
-    answer: "Nous acceptons les paiements via Orange Money (+223 72 56 89 75), Moov Money, Wave, les espèces directement à l'atelier de Badalabougou, ainsi que les virements bancaires et transferts internationaux (Western Union, MoneyGram, Ria)."
+    answer: "Nous acceptons les paiements via Orange Money Sarali (code marchand: 736778), wave, les espèces à la boutique ainsi que les virements bancaires et transferts internationaux (Western Union, Moneygram, Ria).",
+    imageUrl: "https://lh3.googleusercontent.com/d/1xUfUStw2-5xpCplZtFlLGFDVWrtos_Mm",
+    headerTitle: "JES FASHION",
+    subTitle: "MODES DE PAIEMENT SÉCURISÉS",
+    phone: "+223 72 56 89 75"
   },
   {
     id: 'faq-5',
     category: 'Personnalisation',
-    question: "Puis-je modifier la traîne, les manches ou ajouter plus de broderies dorées à un modèle ?",
-    answer: "Absolument ! En tant que couturière spécialiste de haute couture, chaque modèle de notre catalogue peut être ajusté selon vos envies : rallonger ou raccourcir la traîne, ajouter des manches longues en dentelle, ajouter ou alléger les broderies dorées."
+    question: "Puis-je apporter des modifications à un modèle que je souhaiterais reproduire ?",
+    answer: "Absolument! En tant que spécialiste de haute couture, chaque modèle est modifiable et ajustable à vos envies!",
+    imageUrl: "https://lh3.googleusercontent.com/d/14PNEynhG60yZdhTU-o8k9ZpcDmD2lqts",
+    headerTitle: "JES FASHION",
+    subTitle: "MODIFICATIONS & MODÈLES SUR MESURE",
+    phone: "+223 72 56 89 75"
   },
   {
     id: 'faq-6',
-    category: 'Prise de Mesures',
-    question: "Comment prendre mes mesures si je suis à l'extérieur de Bamako ?",
-    answer: "C'est très simple ! Notre équipe vous contacte directement en appel vidéo sur WhatsApp pour vous guider étape par étape lors de la prise de vos mesures (tour de poitrine, tour de taille, tour de hanches, hauteur avec talons)."
+    category: 'Commande Internationale',
+    question: "Puis-je commander une robe sur mesures étant hors du Mali?",
+    answer: `JES FASHION
+COMMENT COMMANDER ÉTANT HORS DU MALI?
++223 72 56 89 75
+1. Choix de votre robe et validation de votre devis
+2. Envoie de vos mesures prises chez un pro avec 80% de la somme (OM, Western, Moneygram)
+3. Confection de la robe sous un délai de 40 jours et envoie de la vidéo réelle de la robe
+4. Paiement des 20% restants et envoie de votre colis à vos frais puis essayage final de votre robe pour validation.`,
+    imageUrl: "https://lh3.googleusercontent.com/d/1fJ6D3r7qMFtvwbB1dAam85lDVacF5pTu",
+    headerTitle: "JES FASHION",
+    subTitle: "COMMENT COMMANDER ÉTANT HORS DU MALI ?",
+    phone: "+223 72 56 89 75",
+    steps: [
+      "1. Choix de votre robe et validation de votre devis",
+      "2. Envoie de vos mesures prises chez un pro avec 80% de la somme (OM, Western, Moneygram)",
+      "3. Confection de la robe sous un délai de 40 jours et envoie de la vidéo réelle de la robe",
+      "4. Paiement des 20% restants et envoie de votre colis à vos frais puis essayage final de votre robe pour validation."
+    ],
+    whatsappCta: "COMMANDEZ MAINTENANT",
+    whatsappMessage: "Bonjour Jes Fashion, je souhaite commander une robe sur mesures depuis l'extérieur du Mali."
   }
 ];

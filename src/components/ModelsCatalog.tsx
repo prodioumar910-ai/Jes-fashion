@@ -169,9 +169,9 @@ export const ModelsCatalog: React.FC<ModelsCatalogProps> = ({
 
       {/* THREE MANUAL HORIZONTAL SCROLLING LINES */}
       <div className="space-y-12">
-        <ManualScrollRow title="Collection Princesse & Royale" products={line1Products} />
-        <ManualScrollRow title="Collection Haute Couture & Sirène" products={line2Products} />
-        <ManualScrollRow title="Collection Bohème Chic & Satin" products={line3Products} />
+        <ManualScrollRow title="Robes Princesses" products={line1Products} />
+        <ManualScrollRow title="Robes Sirènes Detachable" products={line2Products} />
+        <ManualScrollRow title="Robes Sirènes Évasées" products={line3Products} />
       </div>
 
     </section>

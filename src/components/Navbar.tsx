@@ -162,7 +162,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenQuickOrder }) => {
             onClick={() => scrollToSection('confiance')}
             className="block w-full text-left px-3 py-2 text-base font-medium text-neutral-800 hover:bg-amber-50 rounded-lg"
           >
-            Ils Nous Ont Fait Confiance
+            Elles nous ont fait confiance
           </button>
           <button
             onClick={() => scrollToSection('modeles')}
