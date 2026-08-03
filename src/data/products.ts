@@ -425,6 +425,30 @@ export const PRODUCTS: Product[] = [
     features: ["Éclat féerique", "Incrustations or 3D", "Grand jupon"],
     rating: 5.0
   },
+  {
+    id: 'p-line1-28',
+    title: "Soleil Impérial de Bamako",
+    category: 'Princesse',
+    lineIndex: 1,
+    price: "425 000 FCFA",
+    refCode: "JF-ROYAL-28",
+    imageUrl: "https://lh3.googleusercontent.com/d/1ofV_-es17CpNrcn_F-3bTCYyowLMjgEj",
+    description: "Robe Princesse somptueuse rehaussée de broderies dorées et d'une traîne féerique.",
+    features: ["Broderies dorées", "Coupe Princesse", "Traîne majestueuse"],
+    rating: 5.0
+  },
+  {
+    id: 'p-line1-29',
+    title: "Fleur d'Or Royale",
+    category: 'Princesse',
+    lineIndex: 1,
+    price: "415 000 FCFA",
+    refCode: "JF-ROYAL-29",
+    imageUrl: "https://lh3.googleusercontent.com/d/1N_ByltArK3WJmFlTQFELebrIf2vPsiqF",
+    description: "Création Princesse éblouissante avec corset orné de détails en fil d'or et cristaux.",
+    features: ["Fil d'or précieux", "Cristaux étincelants", "Jupon grand volume"],
+    rating: 4.9
+  },
 
   // --- LINE 2: Collection Haute Couture (Coupes Sirènes & Formes Sculptantes) ---
   {
@@ -745,6 +769,18 @@ export const PRODUCTS: Product[] = [
     features: ["Dos nu festonné", "Dentelle ciselée", "Traîne cascade"],
     rating: 5.0
   },
+  {
+    id: 'p-line2-27',
+    title: "Majesté Sirène Dorée",
+    category: 'Sirène',
+    lineIndex: 2,
+    price: "345 000 FCFA",
+    refCode: "JF-HC-27",
+    imageUrl: "https://lh3.googleusercontent.com/d/18IldKfTzrmL4Wld7NMdv3H1RKJdb3-9Z",
+    description: "Création Haute Couture sculptante avec détails dorés de lumière.",
+    features: ["Broderie dorée", "Coupe sirène", "Traîne évasée"],
+    rating: 5.0
+  },
   // --- LINE 3: Collection Élégance Épurée & Bohème Chic ---
   {
     id: 'p-line3-1',
@@ -991,6 +1027,114 @@ export const PRODUCTS: Product[] = [
     description: "Bretelles spaghettis perlées dorées et jupe évasée à traîne légère.",
     features: ["Bretelles spaghettis", "Jupe évasée", "Ultra légère"],
     rating: 4.7
+  },
+  {
+    id: 'p-line3-21',
+    title: "Poésie Nuptiale",
+    category: 'Bohème & Chic',
+    lineIndex: 3,
+    price: "240 000 FCFA",
+    refCode: "JF-EE-21",
+    imageUrl: "https://lh3.googleusercontent.com/d/12CTOyUMHOY3uC7slDyRg4dQTgNViZUwo",
+    description: "Mousseline légère drapée avec incrustations subtiles de fil d'or.",
+    features: ["Mousseline de soie", "Drapé romantique", "Finition dorée"],
+    rating: 4.9
+  },
+  {
+    id: 'p-line3-22',
+    title: "Broderie de Soie",
+    category: 'Bohème & Chic',
+    lineIndex: 3,
+    price: "265 000 FCFA",
+    refCode: "JF-EE-22",
+    imageUrl: "https://lh3.googleusercontent.com/d/1_320bnI61cAL3cGceiZPrFBFyk_xxYMz",
+    description: "Broderie de soie fine et traîne souple pour une allure poétique.",
+    features: ["Broderie de soie", "Traîne souple", "Confort absolu"],
+    rating: 4.8
+  },
+  {
+    id: 'p-line3-23',
+    title: "Voile d'Or Divin",
+    category: 'Bohème & Chic',
+    lineIndex: 3,
+    price: "255 000 FCFA",
+    refCode: "JF-EE-23",
+    imageUrl: "https://lh3.googleusercontent.com/d/1le0arrjstrMZVYMxpRYKXS1UFLXYlmuy",
+    description: "Voile de tulle fluide garni de perles or nacrées.",
+    features: ["Tulle fluide", "Perles or nacrées", "Coupe épurée"],
+    rating: 5.0
+  },
+  {
+    id: 'p-line3-24',
+    title: "Féerie Épurée",
+    category: 'Bohème & Chic',
+    lineIndex: 3,
+    price: "275 000 FCFA",
+    refCode: "JF-EE-24",
+    imageUrl: "https://lh3.googleusercontent.com/d/1TrO6NDxdvBn9xSsZmJ8iZ1XSoU2-FKPh",
+    description: "Robe bohème fluide au décolleté gracieux souligné d'un biais d'or.",
+    features: ["Décolleté gracieux", "Biais d'or", "Tissu respirant"],
+    rating: 4.9
+  },
+  {
+    id: 'p-line3-25',
+    title: "Satin d'Amour",
+    category: 'Bohème & Chic',
+    lineIndex: 3,
+    price: "235 000 FCFA",
+    refCode: "JF-EE-25",
+    imageUrl: "https://lh3.googleusercontent.com/d/1N_ByltArK3WJmFlTQFELebrIf2vPsiqF",
+    description: "Satin fluide et souple avec retombée royale élégante.",
+    features: ["Satin fluide", "Boutons dos", "Sur-mesure offert"],
+    rating: 4.8
+  },
+  {
+    id: 'p-line3-26',
+    title: "Perle de Yirimadjo",
+    category: 'Bohème & Chic',
+    lineIndex: 3,
+    price: "280 000 FCFA",
+    refCode: "JF-EE-26",
+    imageUrl: "https://lh3.googleusercontent.com/d/1ofV_-es17CpNrcn_F-3bTCYyowLMjgEj",
+    description: "Finition raffinée d'atelier avec broderies d'or cuivré.",
+    features: ["Or cuivré", "Dentelle ciselée", "Luxe moderne"],
+    rating: 5.0
+  },
+  {
+    id: 'p-line3-27',
+    title: "Dentelle d'Afrique",
+    category: 'Bohème & Chic',
+    lineIndex: 3,
+    price: "245 000 FCFA",
+    refCode: "JF-EE-27",
+    imageUrl: "https://lh3.googleusercontent.com/d/1sWulKfEIDWiZQ_thS3a58C7t0Uvbo94u",
+    description: "Dentelle florale et volants légers pour une cérémonie lumineuse.",
+    features: ["Dentelle florale", "Volants légers", "Style moderne"],
+    rating: 4.9
+  },
+  {
+    id: 'p-line3-28',
+    title: "Prestige de Soie",
+    category: 'Bohème & Chic',
+    lineIndex: 3,
+    price: "290 000 FCFA",
+    refCode: "JF-EE-28",
+    imageUrl: "https://lh3.googleusercontent.com/d/1wSKVUWVkz-21eSZj-pfNWGNiH6H4fnGK",
+    description: "Robe Haute Couture épurée mariant crêpe et dorures étincelantes.",
+    features: ["Crêpe de soie", "Dorures métalliques", "Coupe parfaite"],
+    rating: 5.0
+  },
+  {
+    id: 'p-line3-29',
+    title: "Reine Épurée",
+    category: 'Bohème & Chic',
+    lineIndex: 3,
+    price: "260 000 FCFA",
+    refCode: "JF-EE-29",
+    imageUrl: "https://lh3.googleusercontent.com/d/1Wd68_lBMo3YtJUTytzzGnaFJab7x4V3h",
+    description: "Robe d'exception avec traîne aérienne et détails dorés à la main.",
+    features: ["Traîne aérienne", "Fait main à Bamako", "Buste ajusté"],
+    rating: 4.9
   }
 ];
 

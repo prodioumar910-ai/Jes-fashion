@@ -20,6 +20,10 @@ import {
   Save,
   RotateCcw,
   Crown,
+  Layers,
+  ArrowRightLeft,
+  Sparkles,
+  LayoutGrid,
 } from 'lucide-react';
 import {
   BookingRecord,
@@ -32,33 +36,41 @@ import {
   addBookingRecord,
   subscribeToDatabase,
   updateProductInfo,
+  updateProductLineIndex,
   resetProductInfo,
   getCustomizedProducts,
 } from '../lib/database';
 import { PRODUCTS } from '../data/products';
 import { Product } from '../types';
+import { OptimizedImage, getFastImageUrl } from './OptimizedImage';
 
 interface AdminModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1594552072238-b8a33785b261?auto=format&fit=crop&q=80&w=600';
+
 export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState('');
 
-  const [activeTab, setActiveTab] = useState<'bookings' | 'products' | 'edit_prices' | 'new'>('bookings');
+  const [activeTab, setActiveTab] = useState<'bookings' | 'lines_manager' | 'edit_prices' | 'reserved_status' | 'new_booking'>('bookings');
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
   const [reservedIds, setReservedIds] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'confirmed' | 'cancelled'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Catalog Name, Rental Price & Purchase Price editing state
+  // Line Manager Filter
+  const [selectedLineFilter, setSelectedLineFilter] = useState<'all' | '1' | '2' | '3'>('all');
+  const [lineMoveNotice, setLineMoveNotice] = useState<string | null>(null);
+
+  // Catalog Name, Rental Price, Purchase Price & Image URL editing state
   const [customProducts, setCustomProducts] = useState<Product[]>([]);
   const [catalogSearch, setCatalogSearch] = useState('');
   const [editMap, setEditMap] = useState<
-    Record<string, { title: string; rentalPrice: string; purchasePrice: string }>
+    Record<string, { title: string; rentalPrice: string; purchasePrice: string; lineIndex: 1 | 2 | 3; imageUrl: string }>
   >({});
   const [savedSuccessId, setSavedSuccessId] = useState<string | null>(null);
 
@@ -77,12 +89,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
 
       const prods = getCustomizedProducts();
       setCustomProducts(prods);
-      const initialMap: Record<string, { title: string; rentalPrice: string; purchasePrice: string }> = {};
+      const initialMap: Record<string, { title: string; rentalPrice: string; purchasePrice: string; lineIndex: 1 | 2 | 3; imageUrl: string }> = {};
       prods.forEach((p) => {
         initialMap[p.id] = {
           title: p.title,
           rentalPrice: p.rentalPrice || '150 000 FCFA',
           purchasePrice: p.purchasePrice || p.price || '250 000 FCFA',
+          lineIndex: p.lineIndex || 1,
+          imageUrl: p.imageUrl,
         };
       });
       setEditMap(initialMap);
@@ -97,6 +111,17 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
       setReservedIds(getReservedProductIds());
       const updatedProds = getCustomizedProducts();
       setCustomProducts(updatedProds);
+      const updatedMap: Record<string, { title: string; rentalPrice: string; purchasePrice: string; lineIndex: 1 | 2 | 3; imageUrl: string }> = {};
+      updatedProds.forEach((p) => {
+        updatedMap[p.id] = {
+          title: p.title,
+          rentalPrice: p.rentalPrice || '150 000 FCFA',
+          purchasePrice: p.purchasePrice || p.price || '250 000 FCFA',
+          lineIndex: p.lineIndex || 1,
+          imageUrl: p.imageUrl,
+        };
+      });
+      setEditMap(updatedMap);
     });
 
     return () => {
@@ -141,10 +166,26 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
     toggleProductReservationStatus(productId);
   };
 
+  const handleMoveProductLine = (productId: string, newLine: 1 | 2 | 3, productTitle: string) => {
+    updateProductLineIndex(productId, newLine);
+    setCustomProducts(getCustomizedProducts());
+    setLineMoveNotice(`« ${productTitle} » déplacé vers la Ligne ${newLine} !`);
+    setTimeout(() => {
+      setLineMoveNotice(null);
+    }, 3000);
+  };
+
   const handleSaveProductInfo = (productId: string) => {
     const editData = editMap[productId];
     if (!editData) return;
-    updateProductInfo(productId, editData.title, editData.rentalPrice, editData.purchasePrice);
+    updateProductInfo(
+      productId,
+      editData.title,
+      editData.rentalPrice,
+      editData.purchasePrice,
+      editData.lineIndex,
+      editData.imageUrl
+    );
     const updated = getCustomizedProducts();
     setCustomProducts(updated);
     setSavedSuccessId(productId);
@@ -165,6 +206,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
           title: originalProd.title,
           rentalPrice: originalProd.rentalPrice || '150 000 FCFA',
           purchasePrice: originalProd.purchasePrice || originalProd.price || '250 000 FCFA',
+          lineIndex: originalProd.lineIndex || 1,
+          imageUrl: originalProd.imageUrl,
         },
       }));
     }
@@ -195,7 +238,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
       paymentMethod: manualPayment,
     });
 
-    // Auto-confirm manual entry
     confirmBookingRecord(newRecord.id);
 
     setManualName('');
@@ -216,34 +258,41 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
 
   const pendingCount = bookings.filter((b) => b.status === 'pending').length;
 
+  const line1Products = customProducts.filter((p) => (p.lineIndex || 1) === 1);
+  const line2Products = customProducts.filter((p) => p.lineIndex === 2);
+  const line3Products = customProducts.filter((p) => p.lineIndex === 3);
+
+  // AUTHENTICATION SCREEN - FULL CLEAN WHITE BACKDROP
   if (!isAuthenticated) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-white animate-fadeIn">
         <div
-          className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-amber-200 p-6 sm:p-8 text-neutral-900 text-center space-y-6 animate-scaleUp"
+          className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden p-8 text-slate-900 text-center space-y-6 animate-scaleUp"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* HIGH VISIBILITY CLOSE BUTTON */}
+          {/* TOP CLOSE BUTTON */}
           <button
             onClick={handleCloseModal}
-            className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-red-600 hover:bg-red-700 text-white font-black text-xs transition-transform hover:scale-105 shadow-lg flex items-center gap-1 cursor-pointer"
+            className="absolute top-4 right-4 px-4 py-2 rounded-full btn-gold-foil text-black font-black text-xs shadow-md flex items-center gap-1 cursor-pointer transition-transform hover:scale-105"
             aria-label="Fermer"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4 text-black" />
             <span>FERMER</span>
           </button>
 
           {/* Header */}
-          <div className="space-y-3 pt-2">
-            <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-tr from-[#BF953F] via-[#FCF6BA] to-[#B38728] p-0.5 shadow-xl flex items-center justify-center">
-              <Lock className="w-8 h-8 text-black" />
+          <div className="space-y-3 pt-4">
+            <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-tr from-[#BF953F] via-[#FCF6BA] to-[#B38728] p-1 shadow-xl flex items-center justify-center">
+              <div className="w-full h-full bg-slate-900 rounded-full flex items-center justify-center">
+                <Lock className="w-10 h-10 text-amber-300" />
+              </div>
             </div>
             <div>
-              <h3 className="text-2xl font-serif font-black text-neutral-900">
+              <h3 className="text-2xl font-serif font-black text-slate-900">
                 Espace Admin Jes Fashion
               </h3>
-              <p className="text-xs text-neutral-600 mt-1 font-medium">
-                Saisissez le mot de passe pour modifier les prix, gérer la base de données et confirmer les réservations.
+              <p className="text-xs text-slate-500 mt-1 font-medium leading-relaxed">
+                Base de données centrale : gérez les modèles, les prix, les réservations et le rangement des images par ligne.
               </p>
             </div>
           </div>
@@ -251,7 +300,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
           {/* Form */}
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <div className="space-y-2">
-              <label className="block text-xs font-bold text-neutral-700 flex items-center justify-center gap-1.5">
+              <label className="block text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5">
                 <Key className="w-4 h-4 text-amber-600" />
                 <span>Code d'accès administrateur</span>
               </label>
@@ -259,16 +308,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
                 type="password"
                 required
                 autoFocus
-                placeholder="Entrez le code"
+                placeholder="Code à 4 chiffres"
                 value={passwordInput}
                 onChange={(e) => {
                   setPasswordInput(e.target.value);
                   setAuthError('');
                 }}
-                className="w-full text-center px-4 py-3.5 bg-neutral-100 border-2 border-neutral-300 rounded-xl text-2xl font-mono font-black tracking-widest text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-amber-500 focus:bg-white"
+                className="w-full text-center px-4 py-3.5 bg-slate-100 rounded-2xl text-2xl font-mono font-black tracking-widest text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 shadow-inner"
               />
               {authError && (
-                <p className="text-xs font-bold text-red-600 bg-red-50 p-2.5 rounded-xl border border-red-200 animate-pulse">
+                <p className="text-xs font-bold text-red-600 bg-red-50 p-3 rounded-xl animate-pulse">
                   {authError}
                 </p>
               )}
@@ -276,164 +325,207 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
 
             <button
               type="submit"
-              className="w-full btn-gold-foil py-3.5 text-xs font-black uppercase tracking-wider rounded-full shadow-lg text-black cursor-pointer hover:scale-[1.02] transition-transform"
+              className="w-full btn-gold-foil py-4 text-xs font-black uppercase tracking-wider rounded-full shadow-xl text-black cursor-pointer hover:scale-[1.02] transition-transform"
             >
               Accéder à la Gestion
             </button>
           </form>
 
-          <p className="text-[11px] text-neutral-500 font-mono pt-2">
-            Base de Données Jes Fashion Badalabougou
+          <p className="text-[11px] text-slate-400 font-mono pt-2">
+            Jes Fashion Haute Couture • Badalabougou
           </p>
         </div>
       </div>
     );
   }
 
+  // MAIN ADMIN INTERFACE - FULL SCREEN (100% WIDTH/HEIGHT), CLEAN WHITE BACKGROUND, HORIZONTAL TOP SECTION NAVIGATION
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-md animate-fadeIn overflow-y-auto">
-      <div
-        className="relative w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-neutral-200 my-4 animate-scaleUp text-neutral-900"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header Bar */}
-        <div className="bg-neutral-900 text-white p-4 sm:p-5 border-b border-amber-500/30 flex items-center justify-between sticky top-0 z-20">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-[#BF953F] via-[#FCF6BA] to-[#B38728] p-0.5 shadow-md flex-shrink-0 flex items-center justify-center">
-              <Database className="w-6 h-6 text-black" />
-            </div>
-            <div>
-              <h3 className="text-lg sm:text-xl font-serif font-black text-amber-300 flex items-center gap-2">
-                Espace Admin Jes Fashion
-                <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                  Gestion & Tarifs
-                </span>
-              </h3>
-              <p className="text-xs text-neutral-300 font-medium">
-                Modifiez les prix de location/achat, les noms des modèles et gérez les réservations.
-              </p>
+    <div className="fixed inset-0 z-50 bg-white w-screen h-screen flex flex-col overflow-hidden animate-fadeIn text-slate-900">
+      
+      {/* BRAND & STATS TOP BAR */}
+      <header className="px-6 py-4 bg-slate-950 text-white flex flex-wrap items-center justify-between flex-shrink-0 gap-4 shadow-md z-20">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#BF953F] via-[#FCF6BA] to-[#B38728] p-0.5 shadow-lg flex-shrink-0 flex items-center justify-center">
+            <div className="w-full h-full bg-slate-900 rounded-full flex items-center justify-center">
+              <Database className="w-5 h-5 text-amber-300" />
             </div>
           </div>
+          <div>
+            <h3 className="text-base sm:text-lg font-serif font-black text-amber-300 leading-tight">
+              Espace Admin • JES FASHION HAUTE COUTURE
+            </h3>
+            <p className="text-xs text-slate-400 font-medium">
+              Base de données centrale • Badalabougou
+            </p>
+          </div>
+        </div>
 
-          {/* HIGH VISIBILITY TOP CLOSE BUTTON */}
+        {/* Right side stats overview & close button */}
+        <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-3 text-xs font-mono bg-slate-900 px-4 py-2 rounded-2xl border border-slate-800 shadow-inner">
+            <span className="text-slate-400">Demandes:</span>
+            <strong className="text-amber-300 font-bold">{bookings.length} ({pendingCount} attente)</strong>
+            <span className="text-slate-700">|</span>
+            <span className="text-slate-400">Modèles:</span>
+            <strong className="text-amber-300 font-bold">{customProducts.length}</strong>
+            <span className="text-slate-700">|</span>
+            <span className="text-slate-400">Réservés:</span>
+            <strong className="text-emerald-400 font-bold">{reservedIds.length}</strong>
+          </div>
+
           <button
+            type="button"
             onClick={handleCloseModal}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-600 hover:bg-red-700 text-white font-black text-xs border border-red-500 shadow-xl transition-all hover:scale-105 cursor-pointer"
-            aria-label="Fermer"
+            className="px-5 py-2.5 btn-gold-foil text-black font-black text-xs uppercase tracking-wider rounded-full shadow-lg transition-transform hover:scale-105 cursor-pointer flex items-center gap-1.5"
           >
-            <X className="w-4 h-4 text-white" />
-            <span>FERMER</span>
+            <X className="w-4 h-4 text-black" />
+            <span>FERMER L'ADMIN</span>
           </button>
         </div>
+      </header>
 
-        {/* Tab Navigation */}
-        <div className="flex border-b border-neutral-200 bg-neutral-100 px-3 sm:px-6 pt-3 gap-2 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('bookings')}
-            className={`py-3 px-4 font-serif font-black text-xs sm:text-sm rounded-t-xl transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'bookings'
-                ? 'bg-white text-black border-t-2 border-x border-amber-500 shadow-md'
-                : 'text-neutral-600 hover:text-black font-bold'
-            }`}
-          >
-            <Clock className="w-4 h-4 text-amber-600" />
-            <span>Demandes ({bookings.length})</span>
-            {pendingCount > 0 && (
-              <span className="px-2 py-0.5 text-[10px] bg-amber-500 text-black font-black rounded-full animate-pulse">
-                {pendingCount}
-              </span>
-            )}
-          </button>
+      {/* HORIZONTAL SECTION NAVIGATION BAR AT TOP */}
+      <nav className="bg-slate-900 border-t border-b border-slate-800 px-4 sm:px-6 py-3 flex items-center gap-2 sm:gap-3 overflow-x-auto scrollbar-none flex-shrink-0 z-10 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setActiveTab('bookings')}
+          className={`px-4 sm:px-5 py-3 rounded-2xl font-serif font-bold text-xs sm:text-sm transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'bookings'
+              ? 'btn-gold-foil text-black shadow-xl font-black scale-[1.02]'
+              : 'text-slate-300 bg-slate-800/80 hover:bg-slate-800 hover:text-amber-200'
+          }`}
+        >
+          <Clock className={`w-4 h-4 ${activeTab === 'bookings' ? 'text-black' : 'text-amber-400'}`} />
+          <span>Demandes de Location</span>
+          <span className={`px-2.5 py-0.5 text-[11px] font-mono rounded-full ${
+            activeTab === 'bookings' ? 'bg-black text-amber-300 font-bold' : 'bg-slate-950 text-amber-300'
+          }`}>
+            {bookings.length}
+          </span>
+        </button>
 
-          <button
-            onClick={() => setActiveTab('products')}
-            className={`py-3 px-4 font-serif font-black text-xs sm:text-sm rounded-t-xl transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'products'
-                ? 'bg-white text-black border-t-2 border-x border-amber-500 shadow-md'
-                : 'text-neutral-600 hover:text-black font-bold'
-            }`}
-          >
-            <Tag className="w-4 h-4 text-amber-600" />
-            <span>Statut RÉSERVEZ ({reservedIds.length})</span>
-          </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('lines_manager')}
+          className={`px-4 sm:px-5 py-3 rounded-2xl font-serif font-bold text-xs sm:text-sm transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'lines_manager'
+              ? 'btn-gold-foil text-black shadow-xl font-black scale-[1.02]'
+              : 'text-slate-300 bg-slate-800/80 hover:bg-slate-800 hover:text-amber-200'
+          }`}
+        >
+          <ArrowRightLeft className={`w-4 h-4 ${activeTab === 'lines_manager' ? 'text-black' : 'text-amber-400'}`} />
+          <span>Rangement des Lignes</span>
+        </button>
 
-          <button
-            onClick={() => setActiveTab('edit_prices')}
-            className={`py-3 px-4 font-serif font-black text-xs sm:text-sm rounded-t-xl transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'edit_prices'
-                ? 'bg-white text-black border-t-2 border-x border-amber-500 shadow-md'
-                : 'text-neutral-600 hover:text-black font-bold'
-            }`}
-          >
-            <Edit3 className="w-4 h-4 text-amber-600" />
-            <span>Modifier Noms & Prix</span>
-            <span className="px-2 py-0.5 text-[10px] bg-amber-100 text-amber-900 rounded-full font-sans font-bold">
-              18 Modèles
-            </span>
-          </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('edit_prices')}
+          className={`px-4 sm:px-5 py-3 rounded-2xl font-serif font-bold text-xs sm:text-sm transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'edit_prices'
+              ? 'btn-gold-foil text-black shadow-xl font-black scale-[1.02]'
+              : 'text-slate-300 bg-slate-800/80 hover:bg-slate-800 hover:text-amber-200'
+          }`}
+        >
+          <Edit3 className={`w-4 h-4 ${activeTab === 'edit_prices' ? 'text-black' : 'text-amber-400'}`} />
+          <span>Noms, Prix & Images</span>
+        </button>
 
-          <button
-            onClick={() => setActiveTab('new')}
-            className={`py-3 px-4 font-serif font-black text-xs sm:text-sm rounded-t-xl transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'new'
-                ? 'bg-white text-black border-t-2 border-x border-amber-500 shadow-md'
-                : 'text-neutral-600 hover:text-black font-bold'
-            }`}
-          >
-            <Plus className="w-4 h-4 text-amber-600" />
-            <span>Saisir Location</span>
-          </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('reserved_status')}
+          className={`px-4 sm:px-5 py-3 rounded-2xl font-serif font-bold text-xs sm:text-sm transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'reserved_status'
+              ? 'btn-gold-foil text-black shadow-xl font-black scale-[1.02]'
+              : 'text-slate-300 bg-slate-800/80 hover:bg-slate-800 hover:text-amber-200'
+          }`}
+        >
+          <ShieldCheck className={`w-4 h-4 ${activeTab === 'reserved_status' ? 'text-black' : 'text-amber-400'}`} />
+          <span>Statut RÉSERVEZ</span>
+          <span className={`px-2.5 py-0.5 text-[11px] font-mono rounded-full ${
+            activeTab === 'reserved_status' ? 'bg-black text-emerald-300 font-bold' : 'bg-emerald-950 text-emerald-300'
+          }`}>
+            {reservedIds.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('new_booking')}
+          className={`px-4 sm:px-5 py-3 rounded-2xl font-serif font-bold text-xs sm:text-sm transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'new_booking'
+              ? 'btn-gold-foil text-black shadow-xl font-black scale-[1.02]'
+              : 'text-slate-300 bg-slate-800/80 hover:bg-slate-800 hover:text-amber-200'
+          }`}
+        >
+          <Plus className={`w-4 h-4 ${activeTab === 'new_booking' ? 'text-black' : 'text-amber-400'}`} />
+          <span>Saisir Location Manuelle</span>
+        </button>
+      </nav>
+
+      {/* MAIN CONTENT AREA - Full Width Scrollable Container */}
+      <main className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 bg-slate-50/50 min-h-0 min-w-0">
+        
+        {/* Active Section Header Title */}
+        <div className="bg-white p-5 rounded-3xl shadow-xs border border-slate-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl md:text-2xl font-serif font-black text-slate-900">
+              {activeTab === 'bookings' && 'Gestion des Demandes de Location'}
+              {activeTab === 'lines_manager' && 'Organisation & Rangement des Lignes'}
+              {activeTab === 'edit_prices' && 'Modification des Noms, Prix de Location / Achat & Images'}
+              {activeTab === 'reserved_status' && 'Gestion du Statut RÉSERVEZ (Disponibilité des Robes)'}
+              {activeTab === 'new_booking' && 'Saisie Manuelle d\'une Demande de Location'}
+            </h2>
+            <p className="text-xs text-slate-500 font-medium mt-1">
+              Base de données centrale Jes Fashion Haute Couture Badalabougou
+            </p>
+          </div>
         </div>
-
-        {/* Modal Main Body - Clean White Background */}
-        <div className="p-4 sm:p-6 max-h-[72vh] overflow-y-auto space-y-5 bg-slate-50 text-neutral-900">
           
           {/* TAB 1: DEMANDES DE LOCATION */}
           {activeTab === 'bookings' && (
-            <div className="space-y-4">
+            <div className="space-y-6">
               
               {/* Search & Filter Bar */}
-              <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-white p-3.5 rounded-2xl border border-neutral-200 shadow-sm">
-                {/* Search */}
-                <div className="relative w-full sm:w-72">
-                  <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-white p-4 rounded-3xl shadow-sm">
+                <div className="relative w-full sm:w-96">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
-                    placeholder="Rechercher nom, téléphone, réf..."
+                    placeholder="Rechercher par client, téléphone, réf..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-amber-500"
+                    className="w-full pl-10 pr-4 py-3 bg-slate-100 rounded-2xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 font-medium"
                   />
                 </div>
 
-                {/* Filter Pills */}
-                <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto text-xs font-bold">
+                <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto text-xs font-bold">
                   <button
                     onClick={() => setFilterStatus('all')}
-                    className={`px-3 py-1.5 rounded-full transition-all cursor-pointer ${
+                    className={`px-4 py-2.5 rounded-full transition-all cursor-pointer ${
                       filterStatus === 'all'
-                        ? 'bg-neutral-900 text-amber-300 font-bold'
-                        : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                        ? 'btn-gold-foil text-black font-black shadow-md'
+                        : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
                     }`}
                   >
                     Toutes ({bookings.length})
                   </button>
                   <button
                     onClick={() => setFilterStatus('pending')}
-                    className={`px-3 py-1.5 rounded-full transition-all cursor-pointer ${
+                    className={`px-4 py-2.5 rounded-full transition-all cursor-pointer ${
                       filterStatus === 'pending'
-                        ? 'bg-amber-500 text-black font-black'
-                        : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                        ? 'btn-gold-foil text-black font-black shadow-md'
+                        : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
                     }`}
                   >
-                    En Attente
+                    En Attente ({pendingCount})
                   </button>
                   <button
                     onClick={() => setFilterStatus('confirmed')}
-                    className={`px-3 py-1.5 rounded-full transition-all cursor-pointer ${
+                    className={`px-4 py-2.5 rounded-full transition-all cursor-pointer ${
                       filterStatus === 'confirmed'
-                        ? 'bg-emerald-600 text-white font-bold'
-                        : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                        ? 'btn-gold-foil text-black font-black shadow-md'
+                        : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
                     }`}
                   >
                     Confirmées
@@ -443,97 +535,98 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
 
               {/* Bookings List */}
               {filteredBookings.length === 0 ? (
-                <div className="p-8 text-center bg-white rounded-2xl border border-neutral-200 text-neutral-500 space-y-2">
-                  <Clock className="w-8 h-8 text-neutral-300 mx-auto" />
-                  <p className="text-xs font-medium">Aucune demande de location enregistrée pour le moment.</p>
+                <div className="p-12 text-center bg-white rounded-3xl shadow-sm text-slate-400 space-y-3">
+                  <Clock className="w-12 h-12 text-amber-500/40 mx-auto" />
+                  <p className="text-sm font-medium">Aucune demande de location ne correspond à votre recherche.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                   {filteredBookings.map((b) => (
                     <div
                       key={b.id}
-                      className="p-4 bg-white rounded-2xl border border-neutral-200 space-y-3 shadow-md hover:shadow-lg transition-all"
+                      className="p-5 bg-white rounded-3xl shadow-sm space-y-4 hover:shadow-xl transition-all flex flex-col justify-between"
                     >
-                      <div className="flex items-start gap-3">
-                        <img
-                          src={b.productImageUrl}
+                      <div className="flex items-start gap-4">
+                        <OptimizedImage
+                          rawUrl={b.productImageUrl}
                           alt={b.productTitle}
-                          className="w-16 h-20 object-cover rounded-xl border border-neutral-200 flex-shrink-0"
+                          containerClassName="w-20 h-28 rounded-2xl flex-shrink-0 shadow-md"
+                          className="w-full h-full object-cover rounded-2xl"
                         />
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold border border-amber-200">
+                        <div className="flex-1 space-y-1.5 min-w-0">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 font-bold">
                               Réf: {b.productRef}
                             </span>
                             <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${
                                 b.status === 'confirmed'
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                  ? 'bg-emerald-100 text-emerald-800'
                                   : b.status === 'pending'
-                                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                                  : 'bg-red-100 text-red-800 border border-red-300'
+                                  ? 'bg-amber-100 text-amber-900'
+                                  : 'bg-red-100 text-red-800'
                               }`}
                             >
                               {b.status === 'confirmed'
-                                ? '✓ Confirmée (RÉSERVEZ)'
+                                ? '✓ Confirmée'
                                 : b.status === 'pending'
                                 ? '⏳ En attente'
                                 : '✕ Annulée'}
                             </span>
                           </div>
 
-                          <h4 className="text-xs font-serif font-black text-neutral-900 leading-snug">
+                          <h4 className="text-sm font-serif font-black text-slate-900 leading-snug whitespace-normal break-words">
                             {b.productTitle}
                           </h4>
 
-                          <p className="text-xs font-bold text-neutral-800 flex items-center gap-1.5 pt-1">
-                            <User className="w-3.5 h-3.5 text-amber-600" />
+                          <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5 pt-1">
+                            <User className="w-4 h-4 text-amber-600" />
                             <span>{b.customerName}</span>
                           </p>
 
-                          <p className="text-xs font-mono text-neutral-700 flex items-center gap-1.5">
-                            <Phone className="w-3.5 h-3.5 text-amber-600" />
-                            <a href={`tel:${b.phone}`} className="hover:underline font-bold">
+                          <p className="text-xs font-mono text-slate-800 flex items-center gap-1.5 font-bold">
+                            <Phone className="w-4 h-4 text-amber-600" />
+                            <a href={`tel:${b.phone}`} className="hover:underline">
                               {b.phone}
                             </a>
                           </p>
 
                           {b.rentalDate && (
-                            <p className="text-xs font-medium text-amber-900 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200 inline-block mt-1">
-                              📅 Date: <strong>{b.rentalDate}</strong>
+                            <p className="text-xs font-medium text-slate-700 bg-amber-50 px-2.5 py-1 rounded-lg inline-block mt-1">
+                              📅 Date: <strong className="text-slate-900">{b.rentalDate}</strong>
                             </p>
                           )}
                         </div>
                       </div>
 
-                      {/* Action Buttons */}
-                      <div className="flex items-center justify-between pt-2 border-t border-neutral-100 gap-2">
+                      {/* Action Buttons Gold */}
+                      <div className="flex items-center justify-between pt-3 border-t border-slate-100 gap-2">
                         {b.status === 'pending' && (
                           <button
                             onClick={() => handleConfirm(b.id)}
-                            className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                            className="flex-1 py-2.5 px-4 btn-gold-foil text-black font-black text-xs rounded-full shadow-md transition-transform hover:scale-105 cursor-pointer flex items-center justify-center gap-1.5"
                           >
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            <span>Confirmer (Marquer RÉSERVEZ)</span>
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Confirmer (RÉSERVEZ)</span>
                           </button>
                         )}
 
                         {b.status === 'confirmed' && (
                           <button
                             onClick={() => handleCancel(b.id)}
-                            className="py-1.5 px-3 bg-amber-100 text-amber-800 hover:bg-amber-200 font-bold text-xs rounded-xl transition-all cursor-pointer border border-amber-300 flex items-center gap-1"
+                            className="py-2 px-4 btn-gold-foil text-black font-bold text-xs rounded-full transition-all cursor-pointer shadow-md flex items-center gap-1"
                           >
-                            <XCircle className="w-3.5 h-3.5" />
+                            <XCircle className="w-4 h-4" />
                             <span>Remettre disponible</span>
                           </button>
                         )}
 
                         <button
                           onClick={() => handleDelete(b.id)}
-                          className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                          className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-2xl transition-all cursor-pointer"
                           title="Supprimer la demande"
                         >
-                          <XCircle className="w-4 h-4" />
+                          <XCircle className="w-5 h-5" />
                         </button>
                       </div>
                     </div>
@@ -543,86 +636,229 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
             </div>
           )}
 
-          {/* TAB 2: GESTION MANUELLE DES STATUTS "RÉSERVEZ" */}
-          {activeTab === 'products' && (
-            <div className="space-y-4">
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-center justify-between">
+          {/* TAB 2: GESTION & DÉPLACEMENT DES LIGNES (1, 2, 3) */}
+          {activeTab === 'lines_manager' && (
+            <div className="space-y-6">
+              
+              {/* Informational Banner */}
+              <div className="p-5 bg-white shadow-sm rounded-3xl text-xs text-slate-700 leading-relaxed flex items-start gap-4">
+                <Sparkles className="w-6 h-6 text-amber-500 flex-shrink-0 mt-0.5" />
                 <div>
-                  💡 Cliquez sur <strong>« Activer RÉSERVEZ »</strong> pour afficher manuellement le bandeau de réservation doré sur une robe, ou <strong>« Désactiver »</strong> pour la rendre libre.
+                  <strong className="text-slate-900 text-sm block">Rangement Direct par Ligne</strong>
+                  <p className="mt-1 text-slate-600">
+                    Cliquez sur les boutons d'or ci-dessous pour changer la ligne d'un modèle. Vos modifications s'affichent immédiatement sur la page d'accueil !
+                  </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {customProducts.map((prod) => {
-                  const isReserved = reservedIds.includes(prod.id);
-                  return (
-                    <div
-                      key={prod.id}
-                      className="p-3 bg-white rounded-2xl border border-neutral-200 shadow-md flex items-center justify-between gap-3"
-                    >
-                      <img
-                        src={prod.imageUrl}
-                        alt={prod.title}
-                        className="w-12 h-16 object-cover rounded-lg border border-neutral-200 flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <h5 className="text-xs font-serif font-black text-neutral-900 truncate">
-                          {prod.title}
-                        </h5>
-                        <p className="text-[10px] font-mono text-neutral-500 font-bold">
-                          Réf: {prod.refCode}
-                        </p>
-                        <div className="mt-1">
-                          {isReserved ? (
-                            <span className="text-[10px] font-black uppercase text-amber-800 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
-                              RÉSERVEZ
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                              Disponible
-                            </span>
-                          )}
+              {/* Toast feedback notice */}
+              {lineMoveNotice && (
+                <div className="p-4 bg-emerald-50 text-emerald-900 rounded-2xl text-xs font-bold flex items-center justify-between animate-fadeIn shadow-sm">
+                  <span className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    {lineMoveNotice}
+                  </span>
+                  <button onClick={() => setLineMoveNotice(null)} className="text-emerald-700 hover:text-emerald-950">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* Line Selection Filter Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-3xl shadow-sm">
+                <div className="flex items-center gap-2">
+                  <LayoutGrid className="w-5 h-5 text-amber-600" />
+                  <span className="text-xs font-serif font-black text-slate-900">Filtrer par Ligne :</span>
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto text-xs font-bold">
+                  <button
+                    onClick={() => setSelectedLineFilter('all')}
+                    className={`px-4 py-2 rounded-full transition-all cursor-pointer ${
+                      selectedLineFilter === 'all'
+                        ? 'btn-gold-foil text-black font-black shadow-md'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    Toutes les Lignes
+                  </button>
+                  <button
+                    onClick={() => setSelectedLineFilter('1')}
+                    className={`px-4 py-2 rounded-full transition-all cursor-pointer ${
+                      selectedLineFilter === '1'
+                        ? 'btn-gold-foil text-black font-black shadow-md'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    Ligne 1
+                  </button>
+                  <button
+                    onClick={() => setSelectedLineFilter('2')}
+                    className={`px-4 py-2 rounded-full transition-all cursor-pointer ${
+                      selectedLineFilter === '2'
+                        ? 'btn-gold-foil text-black font-black shadow-md'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    Ligne 2
+                  </button>
+                  <button
+                    onClick={() => setSelectedLineFilter('3')}
+                    className={`px-4 py-2 rounded-full transition-all cursor-pointer ${
+                      selectedLineFilter === '3'
+                        ? 'btn-gold-foil text-black font-black shadow-md'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    Ligne 3
+                  </button>
+                </div>
+              </div>
+
+              {/* Render Lines Grid */}
+              {[1, 2, 3].map((lineNum) => {
+                const lineIndex = lineNum as 1 | 2 | 3;
+                if (selectedLineFilter !== 'all' && selectedLineFilter !== String(lineNum)) {
+                  return null;
+                }
+
+                const lineProds = customProducts.filter((p) => (p.lineIndex || 1) === lineIndex);
+                const lineTitles = {
+                  1: 'Ligne 1 • Collection Haute Couture',
+                  2: 'Ligne 2 • Collection Robes Sirènes & Soirée',
+                  3: 'Ligne 3 • Collection Élégance & Cérémonie',
+                };
+
+                return (
+                  <div
+                    key={lineNum}
+                    className="p-6 bg-white rounded-3xl space-y-5 shadow-sm"
+                  >
+                    {/* Line Header */}
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                      <div className="flex items-center gap-3">
+                        <span className="w-9 h-9 rounded-2xl btn-gold-foil text-black font-black text-sm flex items-center justify-center font-mono shadow-md">
+                          L{lineNum}
+                        </span>
+                        <div>
+                          <h4 className="text-base font-serif font-black text-slate-900 uppercase tracking-wider">
+                            {lineTitles[lineIndex]}
+                          </h4>
+                          <span className="text-xs text-slate-500 font-medium">
+                            {lineProds.length} images / modèles affichés sur cette ligne
+                          </span>
                         </div>
                       </div>
-
-                      <button
-                        onClick={() => handleToggleProduct(prod.id)}
-                        className={`px-3 py-2 text-[11px] font-black rounded-full transition-all cursor-pointer shadow-md ${
-                          isReserved
-                            ? 'bg-amber-500 text-black hover:bg-amber-400'
-                            : 'bg-neutral-800 text-white hover:bg-neutral-900'
-                        }`}
-                      >
-                        {isReserved ? 'Désactiver' : 'Activer'}
-                      </button>
                     </div>
-                  );
-                })}
-              </div>
+
+                    {/* Products Grid inside this Line */}
+                    {lineProds.length === 0 ? (
+                      <div className="p-8 text-center text-slate-400 text-xs italic bg-slate-50 rounded-2xl">
+                        Aucun modèle sur la Ligne {lineNum} actuellement.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {lineProds.map((prod) => (
+                          <div
+                            key={prod.id}
+                            className="p-4 bg-slate-50 rounded-2xl space-y-3 flex flex-col justify-between shadow-xs hover:shadow-md transition-shadow"
+                          >
+                            <div className="flex items-start gap-3">
+                              <OptimizedImage
+                                rawUrl={prod.imageUrl}
+                                alt={prod.title}
+                                containerClassName="w-20 h-28 rounded-xl flex-shrink-0 shadow-sm"
+                                className="w-full h-full object-cover rounded-xl"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-bold inline-block mb-1">
+                                  Réf: {prod.refCode}
+                                </span>
+                                <h5 className="text-xs font-serif font-black text-slate-900 whitespace-normal break-words leading-tight">
+                                  {prod.title}
+                                </h5>
+                                <p className="text-xs font-mono text-amber-700 mt-1 font-bold">
+                                  Location: {prod.rentalPrice || prod.price}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Move Controls Section Buttons in Gold */}
+                            <div className="pt-2 border-t border-slate-200 space-y-2">
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                                <span>Déplacer vers :</span>
+                                <span className="text-amber-700 font-mono font-bold">Actuel: Ligne {lineNum}</span>
+                              </label>
+
+                              <div className="grid grid-cols-3 gap-1.5">
+                                <button
+                                  type="button"
+                                  disabled={lineNum === 1}
+                                  onClick={() => handleMoveProductLine(prod.id, 1, prod.title)}
+                                  className={`py-2 px-2 rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                                    lineNum === 1
+                                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-60'
+                                      : 'btn-gold-foil text-black shadow-sm hover:scale-105'
+                                  }`}
+                                >
+                                  Ligne 1
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={lineNum === 2}
+                                  onClick={() => handleMoveProductLine(prod.id, 2, prod.title)}
+                                  className={`py-2 px-2 rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                                    lineNum === 2
+                                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-60'
+                                      : 'btn-gold-foil text-black shadow-sm hover:scale-105'
+                                  }`}
+                                >
+                                  Ligne 2
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={lineNum === 3}
+                                  onClick={() => handleMoveProductLine(prod.id, 3, prod.title)}
+                                  className={`py-2 px-2 rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                                    lineNum === 3
+                                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-60'
+                                      : 'btn-gold-foil text-black shadow-sm hover:scale-105'
+                                  }`}
+                                >
+                                  Ligne 3
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          {/* TAB 3: MODIFICATION DES NOMS ET DES DEUX PRIX (LOCATION & ACHAT) - WHITE BACKGROUND */}
+          {/* TAB 3: MODIFICATION DES NOMS, PRIX & IMAGES */}
           {activeTab === 'edit_prices' && (
-            <div className="space-y-4">
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 font-medium leading-relaxed">
-                ✨ <strong>Modification directe du Nom, Prix de Location et Prix d'Achat</strong> : Saisissez les nouveaux prix pour chaque modèle ci-dessous. Ils s'afficheront instantanément lorsque les clientes basculent entre Location et Achat !
+            <div className="space-y-6">
+              <div className="p-4 bg-white shadow-sm rounded-3xl text-xs text-slate-700 font-medium leading-relaxed">
+                ✨ <strong>Modification directe du Nom, Prix de Location, Prix d'Achat, Image et Ligne de Catalogue</strong> : Saisissez vos modifications et cliquez sur « Enregistrer » !
               </div>
 
               {/* Search Bar */}
               <div className="relative">
-                <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
+                <Search className="w-4 h-4 text-slate-400 absolute left-4 top-3.5" />
                 <input
                   type="text"
-                  placeholder="Rechercher par nom de robe ou référence (ex: JF-ROYAL-01)..."
+                  placeholder="Rechercher par nom de robe ou référence (ex: JF-HC-01)..."
                   value={catalogSearch}
                   onChange={(e) => setCatalogSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 bg-white border border-neutral-300 rounded-xl text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-amber-500 shadow-sm"
+                  className="w-full pl-11 pr-4 py-3 bg-white rounded-2xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 font-medium shadow-sm"
                 />
               </div>
 
-              {/* Grid of Product items for editing - White Background Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Grid of Product items for editing */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {customProducts
                   .filter((p) => {
                     if (!catalogSearch.trim()) return true;
@@ -641,32 +877,56 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
                     const currentTitle = editMap[prod.id]?.title ?? prod.title;
                     const currentRental = editMap[prod.id]?.rentalPrice ?? prod.rentalPrice ?? '150 000 FCFA';
                     const currentPurchase = editMap[prod.id]?.purchasePrice ?? prod.purchasePrice ?? prod.price ?? '250 000 FCFA';
+                    const currentLine = editMap[prod.id]?.lineIndex ?? prod.lineIndex ?? 1;
+                    const currentImg = editMap[prod.id]?.imageUrl ?? prod.imageUrl;
                     const isSuccess = savedSuccessId === prod.id;
 
                     return (
                       <div
                         key={prod.id}
-                        className="p-4 bg-white rounded-2xl border border-neutral-200 space-y-3 shadow-md hover:shadow-lg transition-all"
+                        className="p-5 bg-white rounded-3xl shadow-sm space-y-4 hover:shadow-xl transition-all flex flex-col justify-between"
                       >
-                        <div className="flex items-start gap-3">
-                          <img
-                            src={prod.imageUrl}
-                            alt={prod.title}
-                            className="w-20 h-28 object-cover rounded-xl border border-neutral-200 flex-shrink-0 shadow-sm"
+                        <div className="flex items-start gap-4">
+                          <OptimizedImage
+                            rawUrl={currentImg}
+                            alt={currentTitle}
+                            containerClassName="w-22 h-32 rounded-2xl shadow-md flex-shrink-0"
+                            className="w-full h-full object-cover rounded-2xl"
                           />
-                          <div className="flex-1 space-y-2">
+                          <div className="flex-1 space-y-2.5 min-w-0">
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold border border-amber-200">
+                              <span className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 font-bold">
                                 Réf: {prod.refCode}
                               </span>
-                              <span className="text-[10px] text-neutral-500 font-serif font-bold">
-                                Ligne {prod.lineIndex}
-                              </span>
+                              
+                              {/* Line Selector Dropdown */}
+                              <select
+                                value={currentLine}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value) as 1 | 2 | 3;
+                                  setEditMap((prev) => ({
+                                    ...prev,
+                                    [prod.id]: {
+                                      ...prev[prod.id],
+                                      title: currentTitle,
+                                      rentalPrice: currentRental,
+                                      purchasePrice: currentPurchase,
+                                      lineIndex: val,
+                                      imageUrl: currentImg,
+                                    },
+                                  }));
+                                }}
+                                className="text-xs bg-amber-50 text-amber-900 rounded-lg px-2.5 py-1 font-bold cursor-pointer focus:outline-none"
+                              >
+                                <option value={1}>Ligne 1</option>
+                                <option value={2}>Ligne 2</option>
+                                <option value={3}>Ligne 3</option>
+                              </select>
                             </div>
 
                             {/* Title Field */}
                             <div>
-                              <label className="block text-[10px] font-bold text-neutral-600 uppercase tracking-wider mb-0.5">
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
                                 Nom de la Robe
                               </label>
                               <input
@@ -676,13 +936,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
                                   setEditMap((prev) => ({
                                     ...prev,
                                     [prod.id]: {
+                                      ...prev[prod.id],
                                       title: e.target.value,
                                       rentalPrice: currentRental,
                                       purchasePrice: currentPurchase,
+                                      lineIndex: currentLine,
+                                      imageUrl: currentImg,
                                     },
                                   }))
                                 }
-                                className="w-full px-3 py-1.5 bg-slate-50 border border-neutral-300 rounded-lg text-xs font-serif font-black text-neutral-900 focus:outline-none focus:border-amber-500 focus:bg-white"
+                                className="w-full px-3 py-2 bg-slate-50 rounded-xl text-xs font-serif font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
                               />
                             </div>
 
@@ -690,8 +953,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
                             <div className="grid grid-cols-2 gap-2">
                               {/* Prix de Location */}
                               <div>
-                                <label className="block text-[10px] font-bold text-amber-800 uppercase tracking-wider mb-0.5">
-                                  Prix Location (1j)
+                                <label className="block text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1">
+                                  Prix Location
                                 </label>
                                 <input
                                   type="text"
@@ -700,19 +963,22 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
                                     setEditMap((prev) => ({
                                       ...prev,
                                       [prod.id]: {
+                                        ...prev[prod.id],
                                         title: currentTitle,
                                         rentalPrice: e.target.value,
                                         purchasePrice: currentPurchase,
+                                        lineIndex: currentLine,
+                                        imageUrl: currentImg,
                                       },
                                     }))
                                   }
-                                  className="w-full px-2.5 py-1.5 bg-amber-50/60 border border-amber-300 rounded-lg text-xs font-mono font-bold text-amber-900 focus:outline-none focus:border-amber-500 focus:bg-white"
+                                  className="w-full px-2.5 py-1.5 bg-amber-50 rounded-xl text-xs font-mono font-bold text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
                                 />
                               </div>
 
                               {/* Prix d'Achat */}
                               <div>
-                                <label className="block text-[10px] font-bold text-neutral-700 uppercase tracking-wider mb-0.5">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
                                   Prix Achat
                                 </label>
                                 <input
@@ -722,21 +988,24 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
                                     setEditMap((prev) => ({
                                       ...prev,
                                       [prod.id]: {
+                                        ...prev[prod.id],
                                         title: currentTitle,
                                         rentalPrice: currentRental,
                                         purchasePrice: e.target.value,
+                                        lineIndex: currentLine,
+                                        imageUrl: currentImg,
                                       },
                                     }))
                                   }
-                                  className="w-full px-2.5 py-1.5 bg-neutral-50 border border-neutral-300 rounded-lg text-xs font-mono font-bold text-neutral-900 focus:outline-none focus:border-amber-500 focus:bg-white"
+                                  className="w-full px-2.5 py-1.5 bg-slate-50 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
                                 />
                               </div>
                             </div>
                           </div>
                         </div>
 
-                        {/* Actions */}
-                        <div className="flex items-center justify-between pt-2 border-t border-neutral-100">
+                        {/* Actions Gold */}
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-100">
                           {isSuccess ? (
                             <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
                               <CheckCircle className="w-4 h-4" /> Enregistré !
@@ -745,7 +1014,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
                             <button
                               type="button"
                               onClick={() => handleResetProductInfo(prod.id)}
-                              className="text-[11px] text-neutral-500 hover:text-neutral-800 flex items-center gap-1 transition-colors cursor-pointer"
+                              className="text-xs text-slate-400 hover:text-slate-700 flex items-center gap-1 transition-colors cursor-pointer"
                               title="Réinitialiser la valeur d'origine"
                             >
                               <RotateCcw className="w-3.5 h-3.5" />
@@ -756,9 +1025,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
                           <button
                             type="button"
                             onClick={() => handleSaveProductInfo(prod.id)}
-                            className="px-4 py-2 btn-gold-foil text-black font-serif font-black text-xs rounded-full shadow-md flex items-center gap-1.5 transition-all cursor-pointer hover:scale-105 ml-auto"
+                            className="px-5 py-2.5 btn-gold-foil text-black font-serif font-black text-xs rounded-full shadow-md flex items-center gap-1.5 transition-transform hover:scale-105 ml-auto cursor-pointer"
                           >
-                            <Save className="w-3.5 h-3.5" />
+                            <Save className="w-4 h-4" />
                             <span>Enregistrer</span>
                           </button>
                         </div>
@@ -769,118 +1038,161 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
             </div>
           )}
 
-          {/* TAB 4: NOUVELLE LOCATION MANUELLE */}
-          {activeTab === 'new' && (
-            <form onSubmit={handleCreateManualBooking} className="space-y-4 max-w-xl mx-auto py-2 bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
-              <h4 className="text-sm font-serif font-black text-neutral-900 uppercase tracking-wider flex items-center gap-2">
-                <Crown className="w-4 h-4 text-amber-600" />
-                <span>Saisir une location directe en boutique</span>
-              </h4>
-
-              <div>
-                <label className="block text-xs font-bold text-neutral-700 mb-1">
-                  Sélectionner la Robe *
-                </label>
-                <select
-                  value={manualProductId}
-                  onChange={(e) => setManualProductId(e.target.value)}
-                  className="w-full px-4 py-3 bg-neutral-50 border border-neutral-300 rounded-xl text-xs text-neutral-900 focus:outline-none focus:border-amber-500 cursor-pointer"
-                >
-                  {customProducts.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.title} (Réf: {p.refCode})
-                    </option>
-                  ))}
-                </select>
+          {/* TAB 4: STATUT RÉSERVEZ */}
+          {activeTab === 'reserved_status' && (
+            <div className="space-y-6">
+              <div className="p-4 bg-white shadow-sm rounded-3xl text-xs text-slate-700 flex items-center justify-between">
+                <div>
+                  💡 Cliquez sur <strong>« Activer RÉSERVEZ »</strong> pour afficher le bandeau de réservation doré sur une robe, ou <strong>« Désactiver »</strong> pour la remettre disponible.
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-neutral-700 mb-1">
-                  Nom & Prénom de la cliente *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Mariam Traoré"
-                  value={manualName}
-                  onChange={(e) => setManualName(e.target.value)}
-                  className="w-full px-4 py-3 bg-neutral-50 border border-neutral-300 rounded-xl text-xs text-neutral-900 focus:outline-none focus:border-amber-500"
-                />
-              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {customProducts.map((prod) => {
+                  const isReserved = reservedIds.includes(prod.id);
+                  return (
+                    <div
+                      key={prod.id}
+                      className="p-4 bg-white rounded-3xl shadow-sm flex items-center justify-between gap-3 hover:shadow-md transition-shadow"
+                    >
+                      <OptimizedImage
+                        rawUrl={prod.imageUrl}
+                        alt={prod.title}
+                        containerClassName="w-16 h-22 rounded-xl shadow-sm flex-shrink-0"
+                        className="w-full h-full object-cover rounded-xl"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h5 className="text-xs font-serif font-black text-slate-900 whitespace-normal break-words leading-tight">
+                          {prod.title}
+                        </h5>
+                        <p className="text-[10px] font-mono text-slate-500 font-bold mt-1">
+                          Réf: {prod.refCode} • Ligne {prod.lineIndex || 1}
+                        </p>
+                        <div className="mt-1">
+                          {isReserved ? (
+                            <span className="text-[10px] font-black uppercase text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md">
+                              RÉSERVEZ
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                              Disponible
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-              <div>
-                <label className="block text-xs font-bold text-neutral-700 mb-1">
-                  Numéro de téléphone *
-                </label>
-                <input
-                  type="tel"
-                  required
-                  placeholder="Ex: +223 75 00 00 00"
-                  value={manualPhone}
-                  onChange={(e) => setManualPhone(e.target.value)}
-                  className="w-full px-4 py-3 bg-neutral-50 border border-neutral-300 rounded-xl text-xs text-neutral-900 focus:outline-none focus:border-amber-500"
-                />
+                      <button
+                        onClick={() => handleToggleProduct(prod.id)}
+                        className={`px-3.5 py-2 text-xs font-black rounded-full transition-all cursor-pointer shadow-md ${
+                          isReserved
+                            ? 'btn-gold-foil text-black hover:scale-105'
+                            : 'bg-slate-200 text-slate-800 hover:bg-amber-400 hover:text-black'
+                        }`}
+                      >
+                        {isReserved ? 'Désactiver' : 'Activer'}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
-
-              <div>
-                <label className="block text-xs font-bold text-neutral-700 mb-1">
-                  Jour de la location (1 journée) *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={manualDate}
-                  onChange={(e) => setManualDate(e.target.value)}
-                  className="w-full px-4 py-3 bg-neutral-50 border border-neutral-300 rounded-xl text-xs text-neutral-900 focus:outline-none focus:border-amber-500 cursor-pointer"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-neutral-700 mb-1">
-                  Moyen de paiement
-                </label>
-                <select
-                  value={manualPayment}
-                  onChange={(e) => setManualPayment(e.target.value)}
-                  className="w-full px-4 py-3 bg-neutral-50 border border-neutral-300 rounded-xl text-xs text-neutral-900 focus:outline-none focus:border-amber-500 cursor-pointer"
-                >
-                  <option value="Orange Money (+223)">Orange Money (+223)</option>
-                  <option value="Wave Mali">Wave Mali</option>
-                  <option value="Espèces en Boutique (Badalabougou)">Espèces en Boutique (Badalabougou)</option>
-                  <option value="Virement Bancaire">Virement Bancaire</option>
-                </select>
-              </div>
-
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  className="w-full btn-gold-foil py-3.5 text-xs font-black uppercase tracking-wider rounded-full shadow-lg text-black cursor-pointer hover:scale-105 transition-transform"
-                >
-                  Enregistrer & Confirmer la Location
-                </button>
-              </div>
-            </form>
+            </div>
           )}
 
-        </div>
+          {/* TAB 5: NOUVELLE LOCATION MANUELLE */}
+          {activeTab === 'new_booking' && (
+            <div className="max-w-2xl mx-auto py-4">
+              <form onSubmit={handleCreateManualBooking} className="space-y-5 bg-white p-8 rounded-3xl shadow-md">
+                <h4 className="text-base font-serif font-black text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-4">
+                  <Crown className="w-5 h-5 text-amber-600" />
+                  <span>Saisir une location directe en boutique</span>
+                </h4>
 
-        {/* Modal Footer Bar with Highly Visible Red Close Button */}
-        <div className="p-4 bg-neutral-100 border-t border-neutral-200 flex items-center justify-between sticky bottom-0 z-20">
-          <p className="text-xs text-neutral-600 font-bold hidden sm:block">
-            Espace Administration • Jes Fashion Badalabougou
-          </p>
-          
-          {/* HIGH VISIBILITY RED CLOSE BUTTON IN FOOTER */}
-          <button
-            type="button"
-            onClick={handleCloseModal}
-            className="w-full sm:w-auto px-7 py-3 rounded-full bg-red-600 hover:bg-red-700 text-white font-black text-xs uppercase tracking-wider border border-red-500 shadow-xl transition-all hover:scale-105 cursor-pointer flex items-center justify-center gap-2 ml-auto"
-          >
-            <X className="w-4 h-4 text-white" />
-            <span>Fermer la page d'administration</span>
-          </button>
-        </div>
-      </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Sélectionner la Robe *
+                  </label>
+                  <select
+                    value={manualProductId}
+                    onChange={(e) => setManualProductId(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-50 rounded-2xl text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+                  >
+                    {customProducts.map((p) => (
+                      <option key={p.id} value={p.id} className="bg-white text-slate-900">
+                        {p.title} (Réf: {p.refCode} - Ligne {p.lineIndex || 1})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Nom & Prénom de la cliente *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Mariam Traoré"
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-50 rounded-2xl text-xs text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Numéro de téléphone *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="Ex: +223 75 00 00 00"
+                    value={manualPhone}
+                    onChange={(e) => setManualPhone(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-50 rounded-2xl text-xs text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Jour de la location (1 journée) *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={manualDate}
+                    onChange={(e) => setManualDate(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-50 rounded-2xl text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Moyen de paiement
+                  </label>
+                  <select
+                    value={manualPayment}
+                    onChange={(e) => setManualPayment(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-50 rounded-2xl text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+                  >
+                    <option value="Orange Money (+223)">Orange Money (+223)</option>
+                    <option value="Wave Mali">Wave Mali</option>
+                    <option value="Espèces en Boutique (Badalabougou)">Espèces en Boutique (Badalabougou)</option>
+                    <option value="Virement Bancaire">Virement Bancaire</option>
+                  </select>
+                </div>
+
+                <div className="pt-4">
+                  <button
+                    type="submit"
+                    className="w-full btn-gold-foil py-4 text-xs font-black uppercase tracking-wider rounded-full shadow-lg text-black cursor-pointer hover:scale-[1.02] transition-transform"
+                  >
+                    Enregistrer & Confirmer la Location
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+      </main>
     </div>
   );
 };

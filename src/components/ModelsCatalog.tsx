@@ -3,7 +3,7 @@ import { Product } from '../types';
 import { ChevronLeft, ChevronRight, Hand } from 'lucide-react';
 import { ReservedBanner } from './ReservedBanner';
 import { getCustomizedProducts, subscribeToDatabase } from '../lib/database';
-import { OptimizedImage, getFastImageUrl } from './OptimizedImage';
+import { OptimizedImage, preloadFastImage } from './OptimizedImage';
 
 interface ModelsCatalogProps {
   onSelectProduct: (product: Product) => void;
@@ -40,18 +40,17 @@ export const ModelsCatalog: React.FC<ModelsCatalogProps> = ({
   const line2Products = productList.filter((p) => p.lineIndex === 2);
   const line3Products = productList.filter((p) => p.lineIndex === 3);
 
-  // Preload first 4 items of each row for instant visual render
+  // Preload first 5 items of each row for instant visual render
   useEffect(() => {
     const criticalProducts = [
-      ...line1Products.slice(0, 4),
-      ...line2Products.slice(0, 4),
-      ...line3Products.slice(0, 4),
+      ...line1Products.slice(0, 5),
+      ...line2Products.slice(0, 5),
+      ...line3Products.slice(0, 5),
     ];
     criticalProducts.forEach((p) => {
-      const img = new Image();
-      img.src = getFastImageUrl(p.imageUrl, 'catalog');
+      preloadFastImage(p.imageUrl, 'catalog');
     });
-  }, [line1Products.length, line2Products.length, line3Products.length]);
+  }, [line1Products, line2Products, line3Products]);
 
   // Single product card taking 100% full image frame
   const renderProductCard = (product: Product, indexInRow: number) => {

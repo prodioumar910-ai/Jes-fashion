@@ -21,11 +21,14 @@ export interface ProductOverride {
   price?: string;
   rentalPrice?: string;
   purchasePrice?: string;
+  lineIndex?: 1 | 2 | 3;
+  imageUrl?: string;
 }
 
 const BOOKINGS_STORAGE_KEY = 'jes_fashion_bookings_db';
 const RESERVED_PRODUCTS_KEY = 'jes_fashion_reserved_products_db';
 const PRODUCT_OVERRIDES_KEY = 'jes_fashion_product_overrides_db';
+const DELETED_PRODUCTS_KEY = 'jes_fashion_deleted_products_db';
 
 // Initial empty bookings for fresh site startup
 const INITIAL_BOOKINGS: BookingRecord[] = [];
@@ -45,6 +48,24 @@ export const subscribeToDatabase = (listener: Listener) => {
 
 const notifyListeners = () => {
   listeners.forEach((fn) => fn());
+};
+
+export const getDeletedProductIds = (): string[] => {
+  try {
+    const raw = localStorage.getItem(DELETED_PRODUCTS_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch (e) {
+    return [];
+  }
+};
+
+export const deleteProduct = (productId: string) => {
+  const current = getDeletedProductIds();
+  if (!current.includes(productId)) {
+    localStorage.setItem(DELETED_PRODUCTS_KEY, JSON.stringify([...current, productId]));
+    notifyListeners();
+  }
 };
 
 // Database Accessors
@@ -89,12 +110,15 @@ export const getProductOverrides = (): Record<string, ProductOverride> => {
 
 export const getCustomizedProducts = (): Product[] => {
   const overrides = getProductOverrides();
-  return PRODUCTS.map((p) => {
+  const deletedIds = getDeletedProductIds();
+  return PRODUCTS.filter((p) => !deletedIds.includes(p.id)).map((p) => {
     const override = overrides[p.id];
     const rentalPrice = override?.rentalPrice || p.rentalPrice || '150 000 FCFA';
     const purchasePrice = override?.purchasePrice || p.purchasePrice || p.price || '250 000 FCFA';
     const title = override?.title !== undefined ? override.title : p.title;
     const price = override?.price !== undefined ? override.price : rentalPrice;
+    const lineIndex = override?.lineIndex !== undefined ? (override.lineIndex as 1 | 2 | 3) : (p.lineIndex as 1 | 2 | 3);
+    const imageUrl = override?.imageUrl !== undefined ? override.imageUrl : p.imageUrl;
 
     return {
       ...p,
@@ -102,6 +126,8 @@ export const getCustomizedProducts = (): Product[] => {
       price,
       rentalPrice,
       purchasePrice,
+      lineIndex,
+      imageUrl,
     };
   });
 };
@@ -133,9 +159,35 @@ export const saveProductOverrides = (overrides: Record<string, ProductOverride>)
   }
 };
 
-export const updateProductInfo = (productId: string, title: string, rentalPrice: string, purchasePrice: string) => {
+export const updateProductLineIndex = (productId: string, lineIndex: 1 | 2 | 3) => {
   const current = getProductOverrides();
-  current[productId] = { title, rentalPrice, purchasePrice, price: rentalPrice };
+  const existing = current[productId] || {};
+  current[productId] = {
+    ...existing,
+    lineIndex,
+  };
+  saveProductOverrides(current);
+};
+
+export const updateProductInfo = (
+  productId: string,
+  title: string,
+  rentalPrice: string,
+  purchasePrice: string,
+  lineIndex?: 1 | 2 | 3,
+  imageUrl?: string
+) => {
+  const current = getProductOverrides();
+  const existing = current[productId] || {};
+  current[productId] = {
+    ...existing,
+    title,
+    rentalPrice,
+    purchasePrice,
+    price: rentalPrice,
+    ...(lineIndex !== undefined ? { lineIndex } : {}),
+    ...(imageUrl !== undefined ? { imageUrl } : {}),
+  };
   saveProductOverrides(current);
 };
 
