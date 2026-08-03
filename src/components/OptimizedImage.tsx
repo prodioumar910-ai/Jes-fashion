@@ -14,7 +14,14 @@ export const getFastImageUrl = (url: string, size: 'thumb' | 'catalog' | 'hero' 
   const match = url.match(/d\/([a-zA-Z0-9_-]+)/) || url.match(/id=([a-zA-Z0-9_-]+)/);
   if (match && match[1]) {
     const fileId = match[1];
-    return `https://lh3.googleusercontent.com/d/${fileId}`;
+    const szMap = {
+      thumb: 'w400',
+      catalog: 'w800',
+      hero: 'w1200',
+      avatar: 'w200',
+    };
+    const sz = szMap[size] || 'w800';
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=${sz}`;
   }
   return url;
 };
@@ -40,7 +47,7 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
     if (match && match[1]) {
       const fileId = match[1];
       if (errorCount === 0) {
-        const fallback1 = `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
+        const fallback1 = `https://lh3.googleusercontent.com/d/${fileId}`;
         if (img.src !== fallback1) {
           img.src = fallback1;
           setErrorCount(1);

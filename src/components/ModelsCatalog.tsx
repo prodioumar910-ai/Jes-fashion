@@ -11,16 +11,6 @@ interface ModelsCatalogProps {
   products?: Product[];
 }
 
-// Convert Google Drive links to Google's ultra-fast thumbnail CDN (w800 for Catalog)
-const getFastCatalogUrl = (url: string) => {
-  if (!url) return url;
-  const match = url.match(/d\/([a-zA-Z0-9_-]+)/) || url.match(/id=([a-zA-Z0-9_-]+)/);
-  if (match && match[1]) {
-    return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w800`;
-  }
-  return url;
-};
-
 export const ModelsCatalog: React.FC<ModelsCatalogProps> = ({
   onSelectProduct,
   reservedProductIds = [],
@@ -61,7 +51,7 @@ export const ModelsCatalog: React.FC<ModelsCatalogProps> = ({
       const img = new Image();
       img.src = getFastImageUrl(p.imageUrl, 'catalog');
     });
-  }, []);
+  }, [line1Products.length, line2Products.length, line3Products.length]);
 
   // Single product card taking 100% full image frame
   const renderProductCard = (product: Product, indexInRow: number) => {

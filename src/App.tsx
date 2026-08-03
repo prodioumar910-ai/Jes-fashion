@@ -3,6 +3,7 @@ import { Navbar } from './components/Navbar';
 import { HeroCarousel } from './components/HeroCarousel';
 import { TrustSection } from './components/TrustSection';
 import { ModelsCatalog } from './components/ModelsCatalog';
+import { AccessoriesSection } from './components/AccessoriesSection';
 import { SocialsSection } from './components/SocialsSection';
 import { LocationSection } from './components/LocationSection';
 import { FaqSection } from './components/FaqSection';
@@ -77,7 +78,12 @@ export default function App() {
           reservedProductIds={reservedProductIds}
         />
 
-        {/* Section 4: Mes Réseaux Sociaux */}
+        {/* Section 4: Accessoires de Mariée (3 Lignes : Chaussures, Boucles d'Oreilles, Brosses Cheveux) */}
+        <AccessoriesSection
+          onSelectProduct={(p) => setSelectedProduct(p)}
+        />
+
+        {/* Section 5: Mes Réseaux Sociaux */}
         <SocialsSection />
 
         {/* Section 5: Ma Localisation */}

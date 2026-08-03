@@ -79,6 +79,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenQuickOrder }) => {
               Modèles
             </button>
             <button 
+              onClick={() => scrollToSection('accessoires')} 
+              className="hover:text-[#BF953F] transition-colors py-1 relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-0.5 after:bg-[#BF953F] hover:after:w-full after:transition-all text-amber-600 font-extrabold"
+            >
+              Accessoires
+            </button>
+            <button 
               onClick={() => scrollToSection('reseaux')} 
               className="hover:text-[#BF953F] transition-colors py-1 relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-0.5 after:bg-[#BF953F] hover:after:w-full after:transition-all"
             >
@@ -169,6 +175,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenQuickOrder }) => {
             className="block w-full text-left px-3 py-2 text-base font-medium text-neutral-800 hover:bg-amber-50 rounded-lg"
           >
             Nos Modèles (Catalogue)
+          </button>
+          <button
+            onClick={() => scrollToSection('accessoires')}
+            className="block w-full text-left px-3 py-2 text-base font-medium text-amber-700 bg-amber-50 rounded-lg font-bold"
+          >
+            Accessoires de Mariée (3 Lignes)
           </button>
           <button
             onClick={() => scrollToSection('reseaux')}
