@@ -39,6 +39,8 @@ import {
   updateProductLineIndex,
   resetProductInfo,
   getCustomizedProducts,
+  addCustomProduct,
+  addCustomAccessory,
 } from '../lib/database';
 import { PRODUCTS } from '../data/products';
 import { Product } from '../types';
@@ -56,7 +58,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState('');
 
-  const [activeTab, setActiveTab] = useState<'bookings' | 'lines_manager' | 'edit_prices' | 'reserved_status' | 'new_booking'>('bookings');
+  const [activeTab, setActiveTab] = useState<'bookings' | 'lines_manager' | 'edit_prices' | 'reserved_status' | 'new_booking' | 'add_content'>('bookings');
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
   const [reservedIds, setReservedIds] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'confirmed' | 'cancelled'>('all');
@@ -80,6 +82,17 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
   const [manualProductId, setManualProductId] = useState(PRODUCTS[0]?.id || 'mod-1');
   const [manualDate, setManualDate] = useState('');
   const [manualPayment, setManualPayment] = useState('Orange Money (+223)');
+
+  // New Content Form State
+  const [addSection, setAddSection] = useState<'3' | '4'>('3');
+  const [addLine, setAddLine] = useState<'1' | '2' | '3'>('1');
+  const [addTitle, setAddTitle] = useState('');
+  const [addRefCode, setAddRefCode] = useState('');
+  const [addImageUrl, setAddImageUrl] = useState('');
+  const [addPrice, setAddPrice] = useState('');
+  const [addDescription, setAddDescription] = useState('');
+  const [addFeatures, setAddFeatures] = useState('');
+  const [addCategory, setAddCategory] = useState<'Princesse' | 'Sirène' | 'Bohème & Chic' | 'Accessoire'>('Princesse');
 
   useEffect(() => {
     if (isOpen) {
@@ -239,11 +252,63 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
     });
 
     confirmBookingRecord(newRecord.id);
-
     setManualName('');
     setManualPhone('');
     setActiveTab('bookings');
     alert('Location enregistrée et confirmée avec succès dans la base de données !');
+  };
+
+  const handleAddContent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addTitle || !addRefCode || !addImageUrl || !addPrice) {
+      alert('Veuillez remplir les champs obligatoires (Titre, Réf, Image, Prix).');
+      return;
+    }
+
+    const featuresArray = addFeatures.split(',').map((f) => f.trim()).filter((f) => f !== '');
+    const lineNum = Number(addLine) as 1 | 2 | 3;
+
+    if (addSection === '3') {
+      const newProduct: Product = {
+        id: `added-p-${Date.now()}`,
+        title: addTitle,
+        refCode: addRefCode,
+        imageUrl: addImageUrl,
+        price: addPrice,
+        rentalPrice: addPrice,
+        purchasePrice: addPrice,
+        description: addDescription || 'Nouvelle robe Jes Fashion.',
+        features: featuresArray.length > 0 ? featuresArray : ['Nouvelle Collection'],
+        rating: 5.0,
+        lineIndex: lineNum,
+        category: addCategory === 'Accessoire' ? 'Princesse' : addCategory,
+      };
+      addCustomProduct(newProduct);
+      alert('Nouveau modèle ajouté avec succès à la Ligne ' + lineNum + ' de la Section 3 !');
+    } else {
+      const newAccessory: any = {
+        id: `added-acc-${Date.now()}`,
+        title: addTitle,
+        refCode: addRefCode,
+        imageUrl: addImageUrl,
+        price: addPrice,
+        description: addDescription || 'Nouvel accessoire Jes Fashion.',
+        features: featuresArray.length > 0 ? featuresArray : ['Nouvelle Collection'],
+        rating: 5.0,
+        lineIndex: lineNum,
+        category: 'Accessoire',
+      };
+      addCustomAccessory(newAccessory);
+      alert('Nouvel accessoire ajouté avec succès à la Ligne ' + lineNum + ' de la Section 4 !');
+    }
+
+    // Reset form
+    setAddTitle('');
+    setAddRefCode('');
+    setAddImageUrl('');
+    setAddPrice('');
+    setAddDescription('');
+    setAddFeatures('');
   };
 
   const filteredBookings = bookings.filter((b) => {
@@ -460,6 +525,19 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
         >
           <Plus className={`w-4 h-4 ${activeTab === 'new_booking' ? 'text-black' : 'text-amber-400'}`} />
           <span>Saisir Location Manuelle</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('add_content')}
+          className={`px-4 sm:px-5 py-3 rounded-2xl font-serif font-bold text-xs sm:text-sm transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'add_content'
+              ? 'btn-gold-foil text-black shadow-xl font-black scale-[1.02]'
+              : 'text-slate-300 bg-slate-800/80 hover:bg-slate-800 hover:text-amber-200'
+          }`}
+        >
+          <Sparkles className={`w-4 h-4 ${activeTab === 'add_content' ? 'text-black' : 'text-amber-400'}`} />
+          <span>Ajouter Nouveau Modèle/Image</span>
         </button>
       </nav>
 
@@ -1187,6 +1265,156 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
                     className="w-full btn-gold-foil py-4 text-xs font-black uppercase tracking-wider rounded-full shadow-lg text-black cursor-pointer hover:scale-[1.02] transition-transform"
                   >
                     Enregistrer & Confirmer la Location
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* TAB 6: AJOUTER NOUVEAU MODÈLE/IMAGE (SECTION 3 & 4) */}
+          {activeTab === 'add_content' && (
+            <div className="max-w-2xl mx-auto py-4">
+              <form onSubmit={handleAddContent} className="space-y-6 bg-white p-8 rounded-3xl shadow-md border border-slate-100">
+                <h4 className="text-base font-serif font-black text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-4">
+                  <Plus className="w-5 h-5 text-amber-600" />
+                  <span>Ajouter un Nouveau Modèle ou Accessoire</span>
+                </h4>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Section *</label>
+                    <select
+                      value={addSection}
+                      onChange={(e) => setAddSection(e.target.value as '3' | '4')}
+                      className="w-full px-4 py-3.5 bg-slate-50 rounded-2xl text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+                    >
+                      <option value="3">Section 3 (Robes & Modèles)</option>
+                      <option value="4">Section 4 (Accessoires)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Ligne *</label>
+                    <select
+                      value={addLine}
+                      onChange={(e) => setAddLine(e.target.value as '1' | '2' | '3')}
+                      className="w-full px-4 py-3.5 bg-slate-50 rounded-2xl text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+                    >
+                      <option value="1">Ligne 1</option>
+                      <option value="2">Ligne 2</option>
+                      <option value="3">Ligne 3</option>
+                    </select>
+                  </div>
+                </div>
+
+                {addSection === '3' && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Catégorie *</label>
+                    <div className="flex gap-2">
+                      {(['Princesse', 'Sirène', 'Bohème & Chic'] as const).map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setAddCategory(cat)}
+                          className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
+                            addCategory === cat
+                              ? 'btn-gold-foil text-black shadow-sm'
+                              : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Titre *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Reine de Bamako"
+                      value={addTitle}
+                      onChange={(e) => setAddTitle(e.target.value)}
+                      className="w-full px-4 py-3.5 bg-slate-50 rounded-2xl text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Référence *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: JF-HC-101"
+                      value={addRefCode}
+                      onChange={(e) => setAddRefCode(e.target.value)}
+                      className="w-full px-4 py-3.5 bg-slate-50 rounded-2xl text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Lien Image (Direct ou Google Drive) *</label>
+                  <input
+                    type="url"
+                    required
+                    placeholder="https://lh3.googleusercontent.com/d/..."
+                    value={addImageUrl}
+                    onChange={(e) => setAddImageUrl(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-50 rounded-2xl text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                  {addImageUrl && (
+                    <div className="mt-2 flex justify-center">
+                      <OptimizedImage
+                        rawUrl={addImageUrl}
+                        alt="Aperçu"
+                        containerClassName="w-32 h-44 rounded-2xl shadow-md border border-slate-200"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Prix (FCFA) *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: 250 000 FCFA"
+                    value={addPrice}
+                    onChange={(e) => setAddPrice(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-50 rounded-2xl text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Description</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Description courte..."
+                    value={addDescription}
+                    onChange={(e) => setAddDescription(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-50 rounded-2xl text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Caractéristiques (Séparées par des virgules)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Satin royal, Broderies or, Traîne longue"
+                    value={addFeatures}
+                    onChange={(e) => setAddFeatures(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-50 rounded-2xl text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+
+                <div className="pt-4">
+                  <button
+                    type="submit"
+                    className="w-full btn-gold-foil py-4 text-xs font-black uppercase tracking-wider rounded-full shadow-lg text-black cursor-pointer hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-5 h-5" />
+                    <span>Ajouter à la Collection</span>
                   </button>
                 </div>
               </form>

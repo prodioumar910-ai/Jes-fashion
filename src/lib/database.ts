@@ -1,4 +1,5 @@
 import { PRODUCTS } from '../data/products';
+import { ACCESSORY_LINES, AccessoryProduct, AccessoryLine } from '../data/accessories';
 import { Product } from '../types';
 
 export interface BookingRecord {
@@ -29,6 +30,8 @@ const BOOKINGS_STORAGE_KEY = 'jes_fashion_bookings_db';
 const RESERVED_PRODUCTS_KEY = 'jes_fashion_reserved_products_db';
 const PRODUCT_OVERRIDES_KEY = 'jes_fashion_product_overrides_db';
 const DELETED_PRODUCTS_KEY = 'jes_fashion_deleted_products_db';
+const ADDED_PRODUCTS_KEY = 'jes_fashion_added_products_db';
+const ADDED_ACCESSORIES_KEY = 'jes_fashion_added_accessories_db';
 
 // Initial empty bookings for fresh site startup
 const INITIAL_BOOKINGS: BookingRecord[] = [];
@@ -97,6 +100,38 @@ export const getReservedProductIds = (): string[] => {
   }
 };
 
+export const getAddedProducts = (): Product[] => {
+  try {
+    const raw = localStorage.getItem(ADDED_PRODUCTS_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch (e) {
+    return [];
+  }
+};
+
+export const addCustomProduct = (product: Product) => {
+  const current = getAddedProducts();
+  localStorage.setItem(ADDED_PRODUCTS_KEY, JSON.stringify([...current, product]));
+  notifyListeners();
+};
+
+export const getAddedAccessories = (): AccessoryProduct[] => {
+  try {
+    const raw = localStorage.getItem(ADDED_ACCESSORIES_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch (e) {
+    return [];
+  }
+};
+
+export const addCustomAccessory = (accessory: AccessoryProduct) => {
+  const current = getAddedAccessories();
+  localStorage.setItem(ADDED_ACCESSORIES_KEY, JSON.stringify([...current, accessory]));
+  notifyListeners();
+};
+
 export const getProductOverrides = (): Record<string, ProductOverride> => {
   try {
     const raw = localStorage.getItem(PRODUCT_OVERRIDES_KEY);
@@ -111,7 +146,9 @@ export const getProductOverrides = (): Record<string, ProductOverride> => {
 export const getCustomizedProducts = (): Product[] => {
   const overrides = getProductOverrides();
   const deletedIds = getDeletedProductIds();
-  return PRODUCTS.filter((p) => !deletedIds.includes(p.id)).map((p) => {
+  const addedProducts = getAddedProducts();
+  
+  const baseProducts = PRODUCTS.filter((p) => !deletedIds.includes(p.id)).map((p) => {
     const override = overrides[p.id];
     const rentalPrice = override?.rentalPrice || p.rentalPrice || '150 000 FCFA';
     const purchasePrice = override?.purchasePrice || p.purchasePrice || p.price || '250 000 FCFA';
@@ -128,6 +165,46 @@ export const getCustomizedProducts = (): Product[] => {
       purchasePrice,
       lineIndex,
       imageUrl,
+    };
+  });
+
+  // Apply overrides to added products too
+  const processedAdded = addedProducts.map((p) => {
+    const override = overrides[p.id];
+    if (!override) return p;
+    return {
+      ...p,
+      title: override.title !== undefined ? override.title : p.title,
+      rentalPrice: override.rentalPrice !== undefined ? override.rentalPrice : p.rentalPrice,
+      purchasePrice: override.purchasePrice !== undefined ? override.purchasePrice : p.purchasePrice,
+      lineIndex: override.lineIndex !== undefined ? (override.lineIndex as 1 | 2 | 3) : p.lineIndex,
+      imageUrl: override.imageUrl !== undefined ? override.imageUrl : p.imageUrl,
+    };
+  });
+
+  return [...baseProducts, ...processedAdded];
+};
+
+export const getCustomizedAccessories = (): AccessoryLine[] => {
+  const overrides = getProductOverrides();
+  const addedAccessories = getAddedAccessories();
+
+  return ACCESSORY_LINES.map((line) => {
+    const lineAdded = addedAccessories.filter((acc) => acc.lineIndex === line.lineIndex);
+    const baseItems = line.items.map((item) => {
+      const override = overrides[item.id];
+      if (!override) return item;
+      return {
+        ...item,
+        title: override.title !== undefined ? override.title : item.title,
+        price: override.rentalPrice !== undefined ? override.rentalPrice : item.price,
+        imageUrl: override.imageUrl !== undefined ? override.imageUrl : item.imageUrl,
+      };
+    });
+
+    return {
+      ...line,
+      items: [...baseItems, ...lineAdded],
     };
   });
 };

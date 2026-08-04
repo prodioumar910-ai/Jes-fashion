@@ -1,14 +1,25 @@
-import React, { useState } from 'react';
-import { ACCESSORY_LINES, AccessoryProduct } from '../data/accessories';
+import React, { useState, useEffect } from 'react';
+import { AccessoryProduct, AccessoryLine } from '../data/accessories';
 import { Product } from '../types';
 import { ChevronLeft, ChevronRight, Sparkles, Eye } from 'lucide-react';
 import { OptimizedImage } from './OptimizedImage';
+import { getCustomizedAccessories, subscribeToDatabase } from '../lib/database';
 
 interface AccessoriesSectionProps {
   onSelectProduct: (product: Product) => void;
 }
 
 export const AccessoriesSection: React.FC<AccessoriesSectionProps> = ({ onSelectProduct }) => {
+  const [accessoryLines, setAccessoryLines] = useState<AccessoryLine[]>([]);
+
+  useEffect(() => {
+    setAccessoryLines(getCustomizedAccessories());
+    const unsubscribe = subscribeToDatabase(() => {
+      setAccessoryLines(getCustomizedAccessories());
+    });
+    return unsubscribe;
+  }, []);
+
   // Active index for each line (1, 2, 3) for the 3D coverflow carousel
   const [activeIndices, setActiveIndices] = useState<{ [key: number]: number }>({
     1: 0,
@@ -83,7 +94,7 @@ export const AccessoriesSection: React.FC<AccessoriesSectionProps> = ({ onSelect
 
         {/* 3 Accessory Lines */}
         <div className="space-y-16 sm:space-y-24">
-          {ACCESSORY_LINES.map((line) => {
+          {accessoryLines.map((line) => {
             const lineIdx = line.lineIndex as 1 | 2 | 3;
             const items = line.items;
             const activeIdx = activeIndices[lineIdx] ?? 0;
