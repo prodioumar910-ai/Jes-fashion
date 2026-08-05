@@ -24,6 +24,7 @@ import {
   ArrowRightLeft,
   Sparkles,
   LayoutGrid,
+  Trash2,
 } from 'lucide-react';
 import {
   BookingRecord,
@@ -41,6 +42,10 @@ import {
   getCustomizedProducts,
   addCustomProduct,
   addCustomAccessory,
+  removeCustomProduct,
+  removeCustomAccessory,
+  getAddedProducts,
+  getAddedAccessories,
 } from '../lib/database';
 import { PRODUCTS } from '../data/products';
 import { Product } from '../types';
@@ -82,6 +87,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
   const [manualProductId, setManualProductId] = useState(PRODUCTS[0]?.id || 'mod-1');
   const [manualDate, setManualDate] = useState('');
   const [manualPayment, setManualPayment] = useState('Orange Money (+223)');
+  
+  const [addedProductsList, setAddedProductsList] = useState<Product[]>([]);
+  const [addedAccessoriesList, setAddedAccessoriesList] = useState<any[]>([]);
 
   // New Content Form State
   const [addSection, setAddSection] = useState<'3' | '4'>('3');
@@ -99,6 +107,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
       document.body.style.overflow = 'hidden';
       setBookings(getBookings());
       setReservedIds(getReservedProductIds());
+      setAddedProductsList(getAddedProducts());
+      setAddedAccessoriesList(getAddedAccessories());
 
       const prods = getCustomizedProducts();
       setCustomProducts(prods);
@@ -122,6 +132,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
     const unsubscribe = subscribeToDatabase(() => {
       setBookings(getBookings());
       setReservedIds(getReservedProductIds());
+      setAddedProductsList(getAddedProducts());
+      setAddedAccessoriesList(getAddedAccessories());
       const updatedProds = getCustomizedProducts();
       setCustomProducts(updatedProds);
       const updatedMap: Record<string, { title: string; rentalPrice: string; purchasePrice: string; lineIndex: 1 | 2 | 3; imageUrl: string }> = {};
@@ -1418,6 +1430,77 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
                   </button>
                 </div>
               </form>
+
+              {/* LIST OF ADDED ITEMS */}
+              <div className="mt-12 space-y-8">
+                {addedProductsList.length > 0 && (
+                  <div className="bg-white p-8 rounded-3xl shadow-md border border-slate-100">
+                    <h5 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-2">
+                      <div className="w-1.5 h-6 bg-amber-500 rounded-full" />
+                      Modèles Ajoutés (Section 3)
+                    </h5>
+                    <div className="space-y-4">
+                      {addedProductsList.map((p) => (
+                        <div key={p.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                          <OptimizedImage
+                            rawUrl={p.imageUrl}
+                            containerClassName="w-16 h-20 rounded-xl"
+                            imageSize="thumb"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black text-slate-900 truncate uppercase">{p.title}</p>
+                            <p className="text-[10px] font-bold text-amber-600">Ligne {p.lineIndex} • {p.refCode}</p>
+                            <p className="text-[10px] font-medium text-slate-500">{p.price}</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (confirm('Supprimer ce modèle ?')) removeCustomProduct(p.id);
+                            }}
+                            className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors cursor-pointer"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {addedAccessoriesList.length > 0 && (
+                  <div className="bg-white p-8 rounded-3xl shadow-md border border-slate-100">
+                    <h5 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-2">
+                      <div className="w-1.5 h-6 bg-amber-500 rounded-full" />
+                      Accessoires Ajoutés (Section 4)
+                    </h5>
+                    <div className="space-y-4">
+                      {addedAccessoriesList.map((a) => (
+                        <div key={a.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                          <OptimizedImage
+                            rawUrl={a.imageUrl}
+                            containerClassName="w-16 h-16 rounded-xl"
+                            imageSize="thumb"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black text-slate-900 truncate uppercase">{a.title}</p>
+                            <p className="text-[10px] font-bold text-amber-600">Ligne {a.lineIndex} • {a.refCode}</p>
+                            <p className="text-[10px] font-medium text-slate-500">{a.price}</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (confirm('Supprimer cet accessoire ?')) removeCustomAccessory(a.id);
+                            }}
+                            className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors cursor-pointer"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
       </main>

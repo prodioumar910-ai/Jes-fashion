@@ -1,10 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FAQ_ITEMS } from '../data/products';
 import { ChevronDown, HelpCircle, MessageCircle, Phone } from 'lucide-react';
-import { OptimizedImage } from './OptimizedImage';
+import { OptimizedImage, preloadFastImage } from './OptimizedImage';
 
 export const FaqSection: React.FC = () => {
   const [openId, setOpenId] = useState<string | null>('faq-reservation');
+
+  // Preload FAQ images instantly for zero-latency response when opening an accordion
+  useEffect(() => {
+    FAQ_ITEMS.forEach((faq) => {
+      if (faq.imageUrl) {
+        preloadFastImage(faq.imageUrl, 'thumb');
+      }
+    });
+  }, []);
 
   const toggleFaq = (id: string) => {
     setOpenId(openId === id ? null : id);
@@ -73,7 +82,7 @@ export const FaqSection: React.FC = () => {
                         <div className="relative w-48 sm:w-56 h-64 sm:h-72 mx-auto rounded-t-full rounded-b-2xl overflow-hidden shadow-xl border-2 border-amber-300 relative bg-neutral-950 pointer-events-none select-none mb-4">
                           <OptimizedImage
                             rawUrl={faq.imageUrl}
-                            imageSize="catalog"
+                            imageSize="thumb"
                             alt="Illustration Jes Fashion"
                             className="w-full h-full object-cover object-top pointer-events-none"
                             containerClassName="w-full h-full pointer-events-none"

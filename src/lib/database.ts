@@ -116,6 +116,13 @@ export const addCustomProduct = (product: Product) => {
   notifyListeners();
 };
 
+export const removeCustomProduct = (productId: string) => {
+  const current = getAddedProducts();
+  const updated = current.filter(p => p.id !== productId);
+  localStorage.setItem(ADDED_PRODUCTS_KEY, JSON.stringify(updated));
+  notifyListeners();
+};
+
 export const getAddedAccessories = (): AccessoryProduct[] => {
   try {
     const raw = localStorage.getItem(ADDED_ACCESSORIES_KEY);
@@ -129,6 +136,13 @@ export const getAddedAccessories = (): AccessoryProduct[] => {
 export const addCustomAccessory = (accessory: AccessoryProduct) => {
   const current = getAddedAccessories();
   localStorage.setItem(ADDED_ACCESSORIES_KEY, JSON.stringify([...current, accessory]));
+  notifyListeners();
+};
+
+export const removeCustomAccessory = (accessoryId: string) => {
+  const current = getAddedAccessories();
+  const updated = current.filter(a => a.id !== accessoryId);
+  localStorage.setItem(ADDED_ACCESSORIES_KEY, JSON.stringify(updated));
   notifyListeners();
 };
 

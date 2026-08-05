@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { HERO_SLIDES } from '../data/products';
 import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
-import { OptimizedImage, getFastImageUrl } from './OptimizedImage';
+import { OptimizedImage, preloadFastImage } from './OptimizedImage';
 
 interface HeroCarouselProps {
   onOpenQuickOrder: () => void;
@@ -13,8 +13,7 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onOpenQuickOrder }) 
   // Preload all hero images instantly on mount
   useEffect(() => {
     HERO_SLIDES.forEach((slide) => {
-      const img = new Image();
-      img.src = getFastImageUrl(slide.imageUrl, 'hero');
+      preloadFastImage(slide.imageUrl, 'hero');
     });
   }, []);
 
@@ -84,7 +83,7 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onOpenQuickOrder }) 
         {/* Top-Left Pure Round Logo for Section 1 */}
         <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-20">
           <img
-            src="https://drive.google.com/thumbnail?id=1V8PJ5NcqlcZVrjCEy5id2vU0vCAn-Ivs&sz=w500"
+            src="https://lh3.googleusercontent.com/d/1V8PJ5NcqlcZVrjCEy5id2vU0vCAn-Ivs=w200-rw"
             alt="Logo Jes Fashion"
             onError={(e) => {
               const img = e.currentTarget;
