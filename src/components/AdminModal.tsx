@@ -39,6 +39,7 @@ import {
   updateProductInfo,
   updateProductLineIndex,
   resetProductInfo,
+  deleteProduct,
   getCustomizedProducts,
   addCustomProduct,
   addCustomAccessory,
@@ -240,6 +241,19 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
     setTimeout(() => {
       setSavedSuccessId(null);
     }, 2500);
+  };
+
+  const handleDeleteProduct = (productId: string) => {
+    if (confirm('Voulez-vous vraiment supprimer ce modèle de la collection ?')) {
+      if (productId.startsWith('added-p-')) {
+        removeCustomProduct(productId);
+      } else if (productId.startsWith('added-acc-')) {
+        removeCustomAccessory(productId);
+      } else {
+        deleteProduct(productId);
+      }
+      alert('Modèle supprimé avec succès !');
+    }
   };
 
   const handleCreateManualBooking = (e: React.FormEvent) => {
@@ -917,6 +931,15 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
                                   Ligne 3
                                 </button>
                               </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteProduct(prod.id)}
+                                className="w-full mt-2 py-2 px-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>SUPPRIMER LE MODÈLE</span>
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -1095,27 +1118,38 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
                         </div>
 
                         {/* Actions Gold */}
-                        <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                          {isSuccess ? (
-                            <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
-                              <CheckCircle className="w-4 h-4" /> Enregistré !
-                            </span>
-                          ) : (
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-100 gap-3">
+                          <div className="flex items-center gap-2">
+                            {isSuccess ? (
+                              <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                                <CheckCircle className="w-4 h-4" /> Enregistré !
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleResetProductInfo(prod.id)}
+                                className="text-xs text-slate-400 hover:text-slate-700 flex items-center gap-1 transition-colors cursor-pointer"
+                                title="Réinitialiser la valeur d'origine"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>Défaut</span>
+                              </button>
+                            )}
+
                             <button
                               type="button"
-                              onClick={() => handleResetProductInfo(prod.id)}
-                              className="text-xs text-slate-400 hover:text-slate-700 flex items-center gap-1 transition-colors cursor-pointer"
-                              title="Réinitialiser la valeur d'origine"
+                              onClick={() => handleDeleteProduct(prod.id)}
+                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                              title="Supprimer définitivement ce modèle"
                             >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                              <span>Défaut</span>
+                              <Trash2 className="w-4 h-4" />
                             </button>
-                          )}
+                          </div>
 
                           <button
                             type="button"
                             onClick={() => handleSaveProductInfo(prod.id)}
-                            className="px-5 py-2.5 btn-gold-foil text-black font-serif font-black text-xs rounded-full shadow-md flex items-center gap-1.5 transition-transform hover:scale-105 ml-auto cursor-pointer"
+                            className="px-5 py-2.5 btn-gold-foil text-black font-serif font-black text-xs rounded-full shadow-md flex items-center gap-1.5 transition-transform hover:scale-105 cursor-pointer"
                           >
                             <Save className="w-4 h-4" />
                             <span>Enregistrer</span>
