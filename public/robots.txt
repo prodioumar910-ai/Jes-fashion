@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://jes-fashion.com/sitemap.xml
