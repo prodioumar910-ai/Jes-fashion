@@ -1,5 +1,5 @@
 import React from 'react';
-import { Crown, Phone, MapPin, Heart, Sparkles, Database } from 'lucide-react';
+import { Crown, Phone, MapPin, Heart, Sparkles, Database, Instagram, Navigation } from 'lucide-react';
 
 interface FooterProps {
   onOpenAdminModal: () => void;
@@ -104,19 +104,24 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAdminModal }) => {
             </ul>
           </div>
 
-          {/* Col 4: Contact & Adresse */}
+          {/* Col 4: Contact & Boutique */}
           <div>
             <h4 className="text-xs font-serif font-black uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-[#FFF5C0] via-[#BF953F] to-[#FCF6BA] mb-4">
               Contact & Boutique
             </h4>
             <div className="space-y-3 text-xs text-amber-100/90 font-medium">
-              <p className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+              <a 
+                href="https://www.google.com/maps/search/?api=1&query=Badalabougou+Bamako+Mali" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-start gap-2 hover:text-amber-300 transition-colors group"
+              >
+                <MapPin className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
                 <span className="text-amber-200">Badalabougou, Bamako, Mali</span>
-              </p>
+              </a>
               <p className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <a href="https://wa.me/22372568975" className="hover:text-amber-300 text-amber-200 font-mono font-bold">
+                <a href="https://wa.me/22372568975" target="_blank" rel="noopener noreferrer" className="hover:text-amber-300 text-amber-200 font-mono font-bold">
                   +223 72 56 89 75
                 </a>
               </p>
