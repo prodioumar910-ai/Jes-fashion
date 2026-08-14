@@ -26,6 +26,15 @@ export interface ProductOverride {
   imageUrl?: string;
 }
 
+interface FullDbState {
+  bookings: BookingRecord[];
+  reservedProductIds: string[];
+  productOverrides: Record<string, ProductOverride>;
+  deletedProductIds: string[];
+  addedProducts: Product[];
+  addedAccessories: AccessoryProduct[];
+}
+
 const BOOKINGS_STORAGE_KEY = 'jes_fashion_bookings_db';
 const RESERVED_PRODUCTS_KEY = 'jes_fashion_reserved_products_db';
 const PRODUCT_OVERRIDES_KEY = 'jes_fashion_product_overrides_db';
@@ -33,11 +42,36 @@ const DELETED_PRODUCTS_KEY = 'jes_fashion_deleted_products_db';
 const ADDED_PRODUCTS_KEY = 'jes_fashion_added_products_db';
 const ADDED_ACCESSORIES_KEY = 'jes_fashion_added_accessories_db';
 
-// Initial empty bookings for fresh site startup
-const INITIAL_BOOKINGS: BookingRecord[] = [];
+// Helper to safely read from localStorage
+const readLocal = <T>(key: string, fallback: T): T => {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (e) {
+    return fallback;
+  }
+};
 
-// Initial empty reserved products for fresh site startup
-const INITIAL_RESERVED_IDS: string[] = [];
+// Helper to safely write to localStorage
+const writeLocal = (key: string, value: any) => {
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+  } catch (e) {
+    console.warn(`[LocalDB] Failed to save key ${key}:`, e);
+  }
+};
+
+// In-memory state for instantaneous synchronous reads
+let memoryDb: FullDbState = {
+  bookings: readLocal<BookingRecord[]>(BOOKINGS_STORAGE_KEY, []),
+  reservedProductIds: readLocal<string[]>(RESERVED_PRODUCTS_KEY, []),
+  productOverrides: readLocal<Record<string, ProductOverride>>(PRODUCT_OVERRIDES_KEY, {}),
+  deletedProductIds: readLocal<string[]>(DELETED_PRODUCTS_KEY, []),
+  addedProducts: readLocal<Product[]>(ADDED_PRODUCTS_KEY, []),
+  addedAccessories: readLocal<AccessoryProduct[]>(ADDED_ACCESSORIES_KEY, []),
+};
 
 type Listener = () => void;
 const listeners: Set<Listener> = new Set();
@@ -53,108 +87,203 @@ const notifyListeners = () => {
   listeners.forEach((fn) => fn());
 };
 
-export const getDeletedProductIds = (): string[] => {
-  try {
-    const raw = localStorage.getItem(DELETED_PRODUCTS_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch (e) {
-    return [];
+// Apply fresh state from server and notify UI
+const applyRemoteState = (remote: Partial<FullDbState>) => {
+  let changed = false;
+
+  if (Array.isArray(remote.bookings)) {
+    memoryDb.bookings = remote.bookings;
+    writeLocal(BOOKINGS_STORAGE_KEY, remote.bookings);
+    changed = true;
   }
+  if (Array.isArray(remote.reservedProductIds)) {
+    memoryDb.reservedProductIds = remote.reservedProductIds;
+    writeLocal(RESERVED_PRODUCTS_KEY, remote.reservedProductIds);
+    changed = true;
+  }
+  if (remote.productOverrides && typeof remote.productOverrides === 'object') {
+    memoryDb.productOverrides = remote.productOverrides;
+    writeLocal(PRODUCT_OVERRIDES_KEY, remote.productOverrides);
+    changed = true;
+  }
+  if (Array.isArray(remote.deletedProductIds)) {
+    memoryDb.deletedProductIds = remote.deletedProductIds;
+    writeLocal(DELETED_PRODUCTS_KEY, remote.deletedProductIds);
+    changed = true;
+  }
+  if (Array.isArray(remote.addedProducts)) {
+    memoryDb.addedProducts = remote.addedProducts;
+    writeLocal(ADDED_PRODUCTS_KEY, remote.addedProducts);
+    changed = true;
+  }
+  if (Array.isArray(remote.addedAccessories)) {
+    memoryDb.addedAccessories = remote.addedAccessories;
+    writeLocal(ADDED_ACCESSORIES_KEY, remote.addedAccessories);
+    changed = true;
+  }
+
+  if (changed) {
+    notifyListeners();
+  }
+};
+
+// Push local update to server for instant multi-device broadcast
+let pushTimeout: any = null;
+const pushToServer = async (payload: Partial<FullDbState>) => {
+  try {
+    await fetch('/api/database/update', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.warn('[Sync] Server push failed, will retry on next poll:', err);
+  }
+};
+
+// Fetch full DB from server
+const fetchFromServer = async () => {
+  try {
+    const res = await fetch('/api/database', { cache: 'no-store' });
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.data) {
+        applyRemoteState(json.data);
+      }
+    }
+  } catch (e) {
+    // Silent catch for offline or initial boot
+  }
+};
+
+// Real-time synchronization engine via Server-Sent Events (SSE) & Polling
+let sseSource: EventSource | null = null;
+let pollTimer: any = null;
+
+const initRealtimeSync = () => {
+  if (typeof window === 'undefined') return;
+
+  // 1. Initial snapshot fetch
+  fetchFromServer();
+
+  // 2. Setup Server-Sent Events for instant push (< 100ms across all devices)
+  const connectSSE = () => {
+    try {
+      if (sseSource) {
+        sseSource.close();
+      }
+      sseSource = new EventSource('/api/database/stream');
+      
+      sseSource.onmessage = (event) => {
+        try {
+          if (!event.data || event.data.startsWith(':')) return;
+          const parsed = JSON.parse(event.data);
+          if (parsed) {
+            applyRemoteState(parsed);
+          }
+        } catch (err) {
+          console.error('[SSE] Parse error:', err);
+        }
+      };
+
+      sseSource.onerror = () => {
+        // Reconnect after brief delay
+        if (sseSource) {
+          sseSource.close();
+          sseSource = null;
+        }
+        setTimeout(connectSSE, 4000);
+      };
+    } catch (e) {
+      console.warn('[SSE] EventSource init error:', e);
+    }
+  };
+
+  connectSSE();
+
+  // 3. Fallback periodic polling every 4 seconds to guarantee sync on mobile sleep/wake
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(() => {
+    fetchFromServer();
+  }, 4000);
+};
+
+// Automatically start real-time sync when script loads in browser
+initRealtimeSync();
+
+// --- Database Accessors & Actions ---
+
+export const getDeletedProductIds = (): string[] => {
+  return memoryDb.deletedProductIds || [];
 };
 
 export const deleteProduct = (productId: string) => {
   const current = getDeletedProductIds();
   if (!current.includes(productId)) {
-    localStorage.setItem(DELETED_PRODUCTS_KEY, JSON.stringify([...current, productId]));
+    const updated = [...current, productId];
+    memoryDb.deletedProductIds = updated;
+    writeLocal(DELETED_PRODUCTS_KEY, updated);
     notifyListeners();
+    pushToServer({ deletedProductIds: updated });
   }
 };
 
-// Database Accessors
 export const getBookings = (): BookingRecord[] => {
-  try {
-    const raw = localStorage.getItem(BOOKINGS_STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(BOOKINGS_STORAGE_KEY, JSON.stringify(INITIAL_BOOKINGS));
-      return INITIAL_BOOKINGS;
-    }
-    return JSON.parse(raw);
-  } catch (e) {
-    console.error('Error reading bookings DB:', e);
-    return INITIAL_BOOKINGS;
-  }
+  return memoryDb.bookings || [];
 };
 
 export const getReservedProductIds = (): string[] => {
-  try {
-    const raw = localStorage.getItem(RESERVED_PRODUCTS_KEY);
-    if (!raw) {
-      localStorage.setItem(RESERVED_PRODUCTS_KEY, JSON.stringify(INITIAL_RESERVED_IDS));
-      return INITIAL_RESERVED_IDS;
-    }
-    return JSON.parse(raw);
-  } catch (e) {
-    console.error('Error reading reserved products DB:', e);
-    return INITIAL_RESERVED_IDS;
-  }
+  return memoryDb.reservedProductIds || [];
 };
 
 export const getAddedProducts = (): Product[] => {
-  try {
-    const raw = localStorage.getItem(ADDED_PRODUCTS_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch (e) {
-    return [];
-  }
+  return memoryDb.addedProducts || [];
 };
 
 export const addCustomProduct = (product: Product) => {
   const current = getAddedProducts();
-  localStorage.setItem(ADDED_PRODUCTS_KEY, JSON.stringify([...current, product]));
+  const updated = [...current, product];
+  memoryDb.addedProducts = updated;
+  writeLocal(ADDED_PRODUCTS_KEY, updated);
   notifyListeners();
+  pushToServer({ addedProducts: updated });
 };
 
 export const removeCustomProduct = (productId: string) => {
   const current = getAddedProducts();
   const updated = current.filter(p => p.id !== productId);
-  localStorage.setItem(ADDED_PRODUCTS_KEY, JSON.stringify(updated));
+  memoryDb.addedProducts = updated;
+  writeLocal(ADDED_PRODUCTS_KEY, updated);
   notifyListeners();
+  pushToServer({ addedProducts: updated });
 };
 
 export const getAddedAccessories = (): AccessoryProduct[] => {
-  try {
-    const raw = localStorage.getItem(ADDED_ACCESSORIES_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch (e) {
-    return [];
-  }
+  return memoryDb.addedAccessories || [];
 };
 
 export const addCustomAccessory = (accessory: AccessoryProduct) => {
   const current = getAddedAccessories();
-  localStorage.setItem(ADDED_ACCESSORIES_KEY, JSON.stringify([...current, accessory]));
+  const updated = [...current, accessory];
+  memoryDb.addedAccessories = updated;
+  writeLocal(ADDED_ACCESSORIES_KEY, updated);
   notifyListeners();
+  pushToServer({ addedAccessories: updated });
 };
 
 export const removeCustomAccessory = (accessoryId: string) => {
   const current = getAddedAccessories();
   const updated = current.filter(a => a.id !== accessoryId);
-  localStorage.setItem(ADDED_ACCESSORIES_KEY, JSON.stringify(updated));
+  memoryDb.addedAccessories = updated;
+  writeLocal(ADDED_ACCESSORIES_KEY, updated);
   notifyListeners();
+  pushToServer({ addedAccessories: updated });
 };
 
 export const getProductOverrides = (): Record<string, ProductOverride> => {
-  try {
-    const raw = localStorage.getItem(PRODUCT_OVERRIDES_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw);
-  } catch (e) {
-    console.error('Error reading product overrides DB:', e);
-    return {};
-  }
+  return memoryDb.productOverrides || {};
 };
 
 export const getCustomizedProducts = (): Product[] => {
@@ -224,40 +353,37 @@ export const getCustomizedAccessories = (): AccessoryLine[] => {
 };
 
 export const saveBookings = (bookings: BookingRecord[]) => {
-  try {
-    localStorage.setItem(BOOKINGS_STORAGE_KEY, JSON.stringify(bookings));
-    notifyListeners();
-  } catch (e) {
-    console.error('Error saving bookings DB:', e);
-  }
+  memoryDb.bookings = bookings;
+  writeLocal(BOOKINGS_STORAGE_KEY, bookings);
+  notifyListeners();
+  pushToServer({ bookings });
 };
 
 export const saveReservedProductIds = (ids: string[]) => {
-  try {
-    localStorage.setItem(RESERVED_PRODUCTS_KEY, JSON.stringify(ids));
-    notifyListeners();
-  } catch (e) {
-    console.error('Error saving reserved products DB:', e);
-  }
+  memoryDb.reservedProductIds = ids;
+  writeLocal(RESERVED_PRODUCTS_KEY, ids);
+  notifyListeners();
+  pushToServer({ reservedProductIds: ids });
 };
 
 export const saveProductOverrides = (overrides: Record<string, ProductOverride>) => {
-  try {
-    localStorage.setItem(PRODUCT_OVERRIDES_KEY, JSON.stringify(overrides));
-    notifyListeners();
-  } catch (e) {
-    console.error('Error saving product overrides DB:', e);
-  }
+  memoryDb.productOverrides = overrides;
+  writeLocal(PRODUCT_OVERRIDES_KEY, overrides);
+  notifyListeners();
+  pushToServer({ productOverrides: overrides });
 };
 
 export const updateProductLineIndex = (productId: string, lineIndex: 1 | 2 | 3) => {
   const current = getProductOverrides();
   const existing = current[productId] || {};
-  current[productId] = {
-    ...existing,
-    lineIndex,
+  const updated = {
+    ...current,
+    [productId]: {
+      ...existing,
+      lineIndex,
+    },
   };
-  saveProductOverrides(current);
+  saveProductOverrides(updated);
 };
 
 export const updateProductInfo = (
@@ -270,20 +396,23 @@ export const updateProductInfo = (
 ) => {
   const current = getProductOverrides();
   const existing = current[productId] || {};
-  current[productId] = {
-    ...existing,
-    title,
-    rentalPrice,
-    purchasePrice,
-    price: rentalPrice,
-    ...(lineIndex !== undefined ? { lineIndex } : {}),
-    ...(imageUrl !== undefined ? { imageUrl } : {}),
+  const updated = {
+    ...current,
+    [productId]: {
+      ...existing,
+      title,
+      rentalPrice,
+      purchasePrice,
+      price: rentalPrice,
+      ...(lineIndex !== undefined ? { lineIndex } : {}),
+      ...(imageUrl !== undefined ? { imageUrl } : {}),
+    },
   };
-  saveProductOverrides(current);
+  saveProductOverrides(updated);
 };
 
 export const resetProductInfo = (productId: string) => {
-  const current = getProductOverrides();
+  const current = { ...getProductOverrides() };
   delete current[productId];
   saveProductOverrides(current);
 };
