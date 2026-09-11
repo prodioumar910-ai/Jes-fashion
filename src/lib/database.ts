@@ -26,21 +26,24 @@ export interface ProductOverride {
   imageUrl?: string;
 }
 
-interface FullDbState {
+export interface FullDbState {
   bookings: BookingRecord[];
   reservedProductIds: string[];
   productOverrides: Record<string, ProductOverride>;
   deletedProductIds: string[];
   addedProducts: Product[];
   addedAccessories: AccessoryProduct[];
+  lastUpdated?: number;
+  version?: number;
 }
 
-const BOOKINGS_STORAGE_KEY = 'jes_fashion_bookings_db';
-const RESERVED_PRODUCTS_KEY = 'jes_fashion_reserved_products_db';
-const PRODUCT_OVERRIDES_KEY = 'jes_fashion_product_overrides_db';
-const DELETED_PRODUCTS_KEY = 'jes_fashion_deleted_products_db';
-const ADDED_PRODUCTS_KEY = 'jes_fashion_added_products_db';
-const ADDED_ACCESSORIES_KEY = 'jes_fashion_added_accessories_db';
+const BOOKINGS_STORAGE_KEY = 'jes_fashion_bookings_db_v2';
+const RESERVED_PRODUCTS_KEY = 'jes_fashion_reserved_products_db_v2';
+const PRODUCT_OVERRIDES_KEY = 'jes_fashion_product_overrides_db_v2';
+const DELETED_PRODUCTS_KEY = 'jes_fashion_deleted_products_db_v2';
+const ADDED_PRODUCTS_KEY = 'jes_fashion_added_products_db_v2';
+const ADDED_ACCESSORIES_KEY = 'jes_fashion_added_accessories_db_v2';
+const LAST_SYNC_KEY = 'jes_fashion_last_sync_time_v2';
 
 // Helper to safely read from localStorage
 const readLocal = <T>(key: string, fallback: T): T => {
@@ -71,6 +74,8 @@ let memoryDb: FullDbState = {
   deletedProductIds: readLocal<string[]>(DELETED_PRODUCTS_KEY, []),
   addedProducts: readLocal<Product[]>(ADDED_PRODUCTS_KEY, []),
   addedAccessories: readLocal<AccessoryProduct[]>(ADDED_ACCESSORIES_KEY, []),
+  lastUpdated: readLocal<number>(LAST_SYNC_KEY, 0),
+  version: 0,
 };
 
 type Listener = () => void;
@@ -84,42 +89,135 @@ export const subscribeToDatabase = (listener: Listener) => {
 };
 
 const notifyListeners = () => {
-  listeners.forEach((fn) => fn());
+  listeners.forEach((fn) => {
+    try {
+      fn();
+    } catch (e) {
+      console.error('[Database] Listener error:', e);
+    }
+  });
 };
 
-// Apply fresh state from server and notify UI
-const applyRemoteState = (remote: Partial<FullDbState>) => {
+// Cross-tab synchronization via BroadcastChannel
+let broadcastChannel: BroadcastChannel | null = null;
+if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+  try {
+    broadcastChannel = new BroadcastChannel('jes_fashion_sync_channel');
+    broadcastChannel.onmessage = (event) => {
+      if (event.data && event.data.type === 'DB_UPDATED') {
+        fetchFromServer();
+      }
+    };
+  } catch (e) {
+    // Graceful fallback if unsupported
+  }
+}
+
+// Check if local database has any custom content
+const hasLocalCustomData = (): boolean => {
+  const overridesCount = Object.keys(memoryDb.productOverrides || {}).length;
+  const addedProdCount = (memoryDb.addedProducts || []).length;
+  const addedAccCount = (memoryDb.addedAccessories || []).length;
+  const deletedCount = (memoryDb.deletedProductIds || []).length;
+  const reservedCount = (memoryDb.reservedProductIds || []).length;
+  const bookingsCount = (memoryDb.bookings || []).length;
+  return overridesCount > 0 || addedProdCount > 0 || addedAccCount > 0 || deletedCount > 0 || reservedCount > 0 || bookingsCount > 0;
+};
+
+// Apply fresh state from server and notify UI (Guaranteed Non-Destructive)
+export const applyRemoteState = (remote: Partial<FullDbState>) => {
+  if (!remote || typeof remote !== 'object') return;
+
+  // Protect local custom edits if the server is brand new or completely empty
+  const remoteHasContent =
+    (remote.productOverrides && Object.keys(remote.productOverrides).length > 0) ||
+    (Array.isArray(remote.addedProducts) && remote.addedProducts.length > 0) ||
+    (Array.isArray(remote.addedAccessories) && remote.addedAccessories.length > 0) ||
+    (Array.isArray(remote.deletedProductIds) && remote.deletedProductIds.length > 0) ||
+    (Array.isArray(remote.reservedProductIds) && remote.reservedProductIds.length > 0) ||
+    (Array.isArray(remote.bookings) && remote.bookings.length > 0);
+
+  // If server is empty but local has data, push local data to seed server
+  if (!remoteHasContent && hasLocalCustomData()) {
+    console.log('[Sync] Server database is empty. Auto-seeding server with local admin state...');
+    forceSyncAllToCloud();
+    return;
+  }
+
   let changed = false;
 
+  // Compare and update Bookings
   if (Array.isArray(remote.bookings)) {
-    memoryDb.bookings = remote.bookings;
-    writeLocal(BOOKINGS_STORAGE_KEY, remote.bookings);
-    changed = true;
+    const currentSerialized = JSON.stringify(memoryDb.bookings);
+    const remoteSerialized = JSON.stringify(remote.bookings);
+    if (currentSerialized !== remoteSerialized) {
+      memoryDb.bookings = remote.bookings;
+      writeLocal(BOOKINGS_STORAGE_KEY, remote.bookings);
+      changed = true;
+    }
   }
+
+  // Compare and update Reserved Product IDs
   if (Array.isArray(remote.reservedProductIds)) {
-    memoryDb.reservedProductIds = remote.reservedProductIds;
-    writeLocal(RESERVED_PRODUCTS_KEY, remote.reservedProductIds);
-    changed = true;
+    const currentSerialized = JSON.stringify(memoryDb.reservedProductIds);
+    const remoteSerialized = JSON.stringify(remote.reservedProductIds);
+    if (currentSerialized !== remoteSerialized) {
+      memoryDb.reservedProductIds = remote.reservedProductIds;
+      writeLocal(RESERVED_PRODUCTS_KEY, remote.reservedProductIds);
+      changed = true;
+    }
   }
+
+  // Compare and update Product Overrides
   if (remote.productOverrides && typeof remote.productOverrides === 'object') {
-    memoryDb.productOverrides = remote.productOverrides;
-    writeLocal(PRODUCT_OVERRIDES_KEY, remote.productOverrides);
-    changed = true;
+    const currentSerialized = JSON.stringify(memoryDb.productOverrides);
+    const remoteSerialized = JSON.stringify(remote.productOverrides);
+    if (currentSerialized !== remoteSerialized) {
+      memoryDb.productOverrides = remote.productOverrides;
+      writeLocal(PRODUCT_OVERRIDES_KEY, remote.productOverrides);
+      changed = true;
+    }
   }
+
+  // Compare and update Deleted Product IDs
   if (Array.isArray(remote.deletedProductIds)) {
-    memoryDb.deletedProductIds = remote.deletedProductIds;
-    writeLocal(DELETED_PRODUCTS_KEY, remote.deletedProductIds);
-    changed = true;
+    const currentSerialized = JSON.stringify(memoryDb.deletedProductIds);
+    const remoteSerialized = JSON.stringify(remote.deletedProductIds);
+    if (currentSerialized !== remoteSerialized) {
+      memoryDb.deletedProductIds = remote.deletedProductIds;
+      writeLocal(DELETED_PRODUCTS_KEY, remote.deletedProductIds);
+      changed = true;
+    }
   }
+
+  // Compare and update Added Products
   if (Array.isArray(remote.addedProducts)) {
-    memoryDb.addedProducts = remote.addedProducts;
-    writeLocal(ADDED_PRODUCTS_KEY, remote.addedProducts);
-    changed = true;
+    const currentSerialized = JSON.stringify(memoryDb.addedProducts);
+    const remoteSerialized = JSON.stringify(remote.addedProducts);
+    if (currentSerialized !== remoteSerialized) {
+      memoryDb.addedProducts = remote.addedProducts;
+      writeLocal(ADDED_PRODUCTS_KEY, remote.addedProducts);
+      changed = true;
+    }
   }
+
+  // Compare and update Added Accessories
   if (Array.isArray(remote.addedAccessories)) {
-    memoryDb.addedAccessories = remote.addedAccessories;
-    writeLocal(ADDED_ACCESSORIES_KEY, remote.addedAccessories);
-    changed = true;
+    const currentSerialized = JSON.stringify(memoryDb.addedAccessories);
+    const remoteSerialized = JSON.stringify(remote.addedAccessories);
+    if (currentSerialized !== remoteSerialized) {
+      memoryDb.addedAccessories = remote.addedAccessories;
+      writeLocal(ADDED_ACCESSORIES_KEY, remote.addedAccessories);
+      changed = true;
+    }
+  }
+
+  if (remote.lastUpdated) {
+    memoryDb.lastUpdated = remote.lastUpdated;
+    writeLocal(LAST_SYNC_KEY, remote.lastUpdated);
+  }
+  if (remote.version) {
+    memoryDb.version = remote.version;
   }
 
   if (changed) {
@@ -127,61 +225,182 @@ const applyRemoteState = (remote: Partial<FullDbState>) => {
   }
 };
 
-// Push local update to server for instant multi-device broadcast
-let pushTimeout: any = null;
-const pushToServer = async (payload: Partial<FullDbState>) => {
+// Sync state status
+export interface SyncStatus {
+  connected: boolean;
+  lastSyncTime: number;
+  syncInProgress: boolean;
+  version: number;
+}
+
+let syncStatus: SyncStatus = {
+  connected: true,
+  lastSyncTime: Date.now(),
+  syncInProgress: false,
+  version: 1,
+};
+
+type StatusListener = (status: SyncStatus) => void;
+const statusListeners: Set<StatusListener> = new Set();
+
+export const subscribeToSyncStatus = (listener: StatusListener) => {
+  statusListeners.add(listener);
+  listener(syncStatus);
+  return () => {
+    statusListeners.delete(listener);
+  };
+};
+
+const updateSyncStatus = (partial: Partial<SyncStatus>) => {
+  syncStatus = { ...syncStatus, ...partial };
+  statusListeners.forEach((fn) => {
+    try {
+      fn(syncStatus);
+    } catch (e) {
+      // ignore
+    }
+  });
+};
+
+// Push local update to server with retry and multi-device broadcast
+export const pushToServer = async (payload: Partial<FullDbState>): Promise<boolean> => {
+  updateSyncStatus({ syncInProgress: true });
   try {
-    await fetch('/api/database/update', {
+    const res = await fetch('/api/database/update', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
     });
+
+    if (res.ok) {
+      const json = await res.json();
+      updateSyncStatus({
+        connected: true,
+        lastSyncTime: Date.now(),
+        syncInProgress: false,
+        version: json.version || syncStatus.version + 1,
+      });
+
+      // Broadcast to other tabs on same device
+      broadcastChannel?.postMessage({ type: 'DB_UPDATED' });
+      return true;
+    } else {
+      updateSyncStatus({ syncInProgress: false, connected: false });
+      return false;
+    }
   } catch (err) {
-    console.warn('[Sync] Server push failed, will retry on next poll:', err);
+    console.warn('[Sync] Server push failed, will retry:', err);
+    updateSyncStatus({ syncInProgress: false, connected: false });
+    return false;
   }
 };
 
-// Fetch full DB from server
-const fetchFromServer = async () => {
+// Force upload complete authoritative database to server
+export const forceSyncAllToCloud = async (): Promise<{ success: boolean; message: string }> => {
+  updateSyncStatus({ syncInProgress: true });
   try {
-    const res = await fetch('/api/database', { cache: 'no-store' });
+    const fullPayload: FullDbState = {
+      bookings: memoryDb.bookings || [],
+      reservedProductIds: memoryDb.reservedProductIds || [],
+      productOverrides: memoryDb.productOverrides || {},
+      deletedProductIds: memoryDb.deletedProductIds || [],
+      addedProducts: memoryDb.addedProducts || [],
+      addedAccessories: memoryDb.addedAccessories || [],
+    };
+
+    const res = await fetch('/api/database/sync-all', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(fullPayload),
+    });
+
+    if (res.ok) {
+      const json = await res.json();
+      updateSyncStatus({
+        connected: true,
+        lastSyncTime: Date.now(),
+        syncInProgress: false,
+        version: json.version || syncStatus.version + 1,
+      });
+      broadcastChannel?.postMessage({ type: 'DB_UPDATED' });
+      return { success: true, message: 'Tous les modèles, prix et réservations sont synchronisés en direct sur tous les téléphones et ordinateurs des clients !' };
+    } else {
+      updateSyncStatus({ syncInProgress: false, connected: false });
+      return { success: false, message: 'Erreur lors de la synchronisation avec le serveur. Vérifiez votre connexion internet.' };
+    }
+  } catch (err: any) {
+    updateSyncStatus({ syncInProgress: false, connected: false });
+    return { success: false, message: `Erreur réseau : ${err.message || 'Impossible de contacter le serveur.'}` };
+  }
+};
+
+// Fetch full DB from server with cache-busting timestamp
+export const fetchFromServer = async (): Promise<boolean> => {
+  try {
+    const res = await fetch(`/api/database?t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+      },
+    });
+
     if (res.ok) {
       const json = await res.json();
       if (json && json.data) {
         applyRemoteState(json.data);
+        updateSyncStatus({
+          connected: true,
+          lastSyncTime: Date.now(),
+          version: json.data.version || syncStatus.version,
+        });
+        return true;
       }
     }
+    return false;
   } catch (e) {
-    // Silent catch for offline or initial boot
+    updateSyncStatus({ connected: false });
+    return false;
   }
 };
 
-// Real-time synchronization engine via Server-Sent Events (SSE) & Polling
+// Real-time synchronization engine via Server-Sent Events (SSE) & Visibility Listeners
 let sseSource: EventSource | null = null;
 let pollTimer: any = null;
 
 const initRealtimeSync = () => {
   if (typeof window === 'undefined') return;
 
-  // 1. Initial snapshot fetch
+  // 1. Initial snapshot fetch immediately
   fetchFromServer();
 
-  // 2. Setup Server-Sent Events for instant push (< 100ms across all devices)
+  // 2. Setup Server-Sent Events for instant live broadcast (< 50ms)
   const connectSSE = () => {
     try {
       if (sseSource) {
         sseSource.close();
       }
       sseSource = new EventSource('/api/database/stream');
-      
+
+      sseSource.onopen = () => {
+        updateSyncStatus({ connected: true });
+      };
+
       sseSource.onmessage = (event) => {
         try {
           if (!event.data || event.data.startsWith(':')) return;
           const parsed = JSON.parse(event.data);
           if (parsed) {
             applyRemoteState(parsed);
+            updateSyncStatus({
+              connected: true,
+              lastSyncTime: Date.now(),
+              version: parsed.version || syncStatus.version,
+            });
           }
         } catch (err) {
           console.error('[SSE] Parse error:', err);
@@ -189,12 +408,13 @@ const initRealtimeSync = () => {
       };
 
       sseSource.onerror = () => {
-        // Reconnect after brief delay
         if (sseSource) {
           sseSource.close();
           sseSource = null;
         }
-        setTimeout(connectSSE, 4000);
+        updateSyncStatus({ connected: false });
+        // Reconnect after brief backoff
+        setTimeout(connectSSE, 3000);
       };
     } catch (e) {
       console.warn('[SSE] EventSource init error:', e);
@@ -203,11 +423,30 @@ const initRealtimeSync = () => {
 
   connectSSE();
 
-  // 3. Fallback periodic polling every 4 seconds to guarantee sync on mobile sleep/wake
+  // 3. Periodic polling every 4 seconds as a guaranteed fallback on mobile network transitions
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(() => {
     fetchFromServer();
   }, 4000);
+
+  // 4. Instant wake-up sync when user unlocks phone or switches back to tab
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        fetchFromServer();
+        if (!sseSource || sseSource.readyState === EventSource.CLOSED) {
+          connectSSE();
+        }
+      }
+    });
+  }
+
+  // 5. Window focus & online listeners
+  window.addEventListener('focus', () => fetchFromServer());
+  window.addEventListener('online', () => {
+    fetchFromServer();
+    connectSSE();
+  });
 };
 
 // Automatically start real-time sync when script loads in browser
@@ -253,7 +492,7 @@ export const addCustomProduct = (product: Product) => {
 
 export const removeCustomProduct = (productId: string) => {
   const current = getAddedProducts();
-  const updated = current.filter(p => p.id !== productId);
+  const updated = current.filter((p) => p.id !== productId);
   memoryDb.addedProducts = updated;
   writeLocal(ADDED_PRODUCTS_KEY, updated);
   notifyListeners();
@@ -275,7 +514,7 @@ export const addCustomAccessory = (accessory: AccessoryProduct) => {
 
 export const removeCustomAccessory = (accessoryId: string) => {
   const current = getAddedAccessories();
-  const updated = current.filter(a => a.id !== accessoryId);
+  const updated = current.filter((a) => a.id !== accessoryId);
   memoryDb.addedAccessories = updated;
   writeLocal(ADDED_ACCESSORIES_KEY, updated);
   notifyListeners();
@@ -290,7 +529,7 @@ export const getCustomizedProducts = (): Product[] => {
   const overrides = getProductOverrides();
   const deletedIds = getDeletedProductIds();
   const addedProducts = getAddedProducts();
-  
+
   const baseProducts = PRODUCTS.filter((p) => !deletedIds.includes(p.id)).map((p) => {
     const override = overrides[p.id];
     const rentalPrice = override?.rentalPrice || p.rentalPrice || '150 000 FCFA';

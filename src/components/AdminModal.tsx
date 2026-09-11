@@ -47,6 +47,9 @@ import {
   removeCustomAccessory,
   getAddedProducts,
   getAddedAccessories,
+  subscribeToSyncStatus,
+  forceSyncAllToCloud,
+  SyncStatus,
 } from '../lib/database';
 import { PRODUCTS } from '../data/products';
 import { Product } from '../types';
@@ -63,6 +66,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState('');
+
+  // Live Cloud Synchronization state
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({
+    connected: true,
+    lastSyncTime: Date.now(),
+    syncInProgress: false,
+    version: 1,
+  });
+  const [isForcingSync, setIsForcingSync] = useState(false);
+  const [forceSyncMessage, setForceSyncMessage] = useState<{ text: string; success: boolean } | null>(null);
 
   const [activeTab, setActiveTab] = useState<'bookings' | 'lines_manager' | 'edit_prices' | 'reserved_status' | 'new_booking' | 'add_content'>('bookings');
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
@@ -150,13 +163,29 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
       setEditMap(updatedMap);
     });
 
+    const unsubSync = subscribeToSyncStatus((status) => {
+      setSyncStatus(status);
+    });
+
     return () => {
       document.body.style.overflow = 'unset';
       unsubscribe();
+      unsubSync();
     };
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const handleForceSync = async () => {
+    setIsForcingSync(true);
+    setForceSyncMessage(null);
+    const result = await forceSyncAllToCloud();
+    setIsForcingSync(false);
+    setForceSyncMessage({ text: result.message, success: result.success });
+    setTimeout(() => {
+      setForceSyncMessage(null);
+    }, 6000);
+  };
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -475,6 +504,50 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
           </button>
         </div>
       </header>
+
+      {/* LIVE MULTI-DEVICE CLOUD SYNCHRONIZATION STATUS BAR */}
+      <div className="bg-slate-900 border-b border-amber-500/30 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs flex-shrink-0 z-10">
+        <div className="flex items-center gap-2.5">
+          <div className="relative flex items-center justify-center">
+            <span className={`w-2.5 h-2.5 rounded-full ${syncStatus.connected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
+            {syncStatus.connected && (
+              <span className="absolute w-4 h-4 rounded-full bg-emerald-400/30 animate-ping" />
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-slate-200">
+            <span className="font-bold text-amber-300">
+              {syncStatus.connected ? 'Synchronisation Cloud Active' : 'Reconnexion au serveur...'}
+            </span>
+            <span className="text-slate-400 hidden sm:inline">•</span>
+            <span className="text-slate-400 hidden sm:inline">
+              Chaque modification (prix, photos, réservations) s'affiche instantanément sur tous les téléphones des clients.
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 ml-auto">
+          <button
+            type="button"
+            disabled={isForcingSync}
+            onClick={handleForceSync}
+            className="px-3.5 py-1.5 rounded-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:border-amber-400 transition-all font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            title="Force la synchronisation intégrale de votre catalogue vers le serveur et tous les clients"
+          >
+            <RotateCcw className={`w-3.5 h-3.5 ${isForcingSync ? 'animate-spin' : ''}`} />
+            <span>{isForcingSync ? 'Diffusion en cours...' : 'Forcer la synchronisation globale'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* FLASH NOTIFICATION AFTER FORCED SYNC */}
+      {forceSyncMessage && (
+        <div className={`px-6 py-2.5 text-xs font-bold text-center transition-all flex items-center justify-center gap-2 ${
+          forceSyncMessage.success ? 'bg-emerald-900/90 text-emerald-100 border-b border-emerald-500' : 'bg-red-900/90 text-red-100 border-b border-red-500'
+        }`}>
+          <CheckCircle className="w-4 h-4 text-emerald-300" />
+          <span>{forceSyncMessage.text}</span>
+        </div>
+      )}
 
       {/* HORIZONTAL SECTION NAVIGATION BAR AT TOP */}
       <nav className="bg-slate-900 border-t border-b border-slate-800 px-4 sm:px-6 py-3 flex items-center gap-2 sm:gap-3 overflow-x-auto scrollbar-none flex-shrink-0 z-10 shadow-sm">

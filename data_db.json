@@ -1,0 +1,13 @@
+{
+  "bookings": [],
+  "reservedProductIds": [],
+  "productOverrides": {
+    "test": {
+      "title": "test"
+    }
+  },
+  "deletedProductIds": [],
+  "addedProducts": [],
+  "addedAccessories": [],
+  "lastUpdated": 1789162367190
+}
