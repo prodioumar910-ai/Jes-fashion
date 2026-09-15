@@ -1,7 +1,10 @@
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
+import pg from 'pg';
+const { Pool } = pg;
 
 interface DatabaseSchema {
   bookings: any[];
@@ -16,6 +19,24 @@ interface DatabaseSchema {
 
 const DB_FILE_PATH = path.join(process.cwd(), 'data_db.json');
 const DB_TMP_PATH = path.join(process.cwd(), 'data_db.json.tmp');
+
+// Neon PostgreSQL Connection
+const NEON_DEFAULT_URL = 'postgresql://neondb_owner:npg_n8xOQ4YCMpIu@ep-nameless-mouse-a5ajbdsx-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require';
+const DATABASE_URL = process.env.DATABASE_URL || NEON_DEFAULT_URL;
+
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
+
+pool.on('error', (err) => {
+  console.error('[Neon PostgreSQL] Unexpected error on idle client:', err);
+});
+
+let isNeonConnected = false;
 
 // Default initial state
 const defaultDb: DatabaseSchema = {
@@ -54,26 +75,131 @@ function loadDatabase(): DatabaseSchema {
 
 let dbState: DatabaseSchema = loadDatabase();
 
-// Atomic write to disk to prevent corrupted JSON reads
-function saveDatabase() {
+// Atomic local disk cache save
+function saveLocalDiskCache() {
   try {
-    dbState.lastUpdated = Date.now();
-    dbState.version = (dbState.version || 0) + 1;
     const serialized = JSON.stringify(dbState, null, 2);
     fs.writeFileSync(DB_TMP_PATH, serialized, 'utf-8');
     fs.renameSync(DB_TMP_PATH, DB_FILE_PATH);
   } catch (err) {
-    console.error('[Database] Failed to write database to disk:', err);
+    console.error('[Database] Failed to write local cache to disk:', err);
     try {
       fs.writeFileSync(DB_FILE_PATH, JSON.stringify(dbState, null, 2), 'utf-8');
     } catch (fallbackErr) {
-      console.error('[Database] Direct write fallback also failed:', fallbackErr);
+      console.error('[Database] Fallback disk write failed:', fallbackErr);
     }
   }
 }
 
-// Initial save to guarantee data_db.json exists on container startup
-saveDatabase();
+// Save state to Neon PostgreSQL and update local cache
+async function persistState(triggerBroadcast = true) {
+  dbState.lastUpdated = Date.now();
+  dbState.version = (dbState.version || 0) + 1;
+  saveLocalDiskCache();
+
+  try {
+    await pool.query(
+      `INSERT INTO app_database (id, data, version, last_updated)
+       VALUES ('main', $1, $2, $3)
+       ON CONFLICT (id) DO UPDATE
+       SET data = EXCLUDED.data,
+           version = EXCLUDED.version,
+           last_updated = EXCLUDED.last_updated;`,
+      [JSON.stringify(dbState), dbState.version, dbState.lastUpdated]
+    );
+    isNeonConnected = true;
+    console.log(`[Neon PostgreSQL] State version ${dbState.version} saved successfully.`);
+  } catch (err) {
+    console.error('[Neon PostgreSQL] Failed to save to Neon, cached locally:', err);
+    isNeonConnected = false;
+  }
+
+  if (triggerBroadcast) {
+    broadcastDatabaseUpdate();
+  }
+}
+
+// Fetch latest state from Neon if version is newer
+async function syncFromNeon(): Promise<boolean> {
+  try {
+    const res = await pool.query('SELECT data, version, last_updated FROM app_database WHERE id = $1', ['main']);
+    isNeonConnected = true;
+    if (res.rows.length > 0) {
+      const row = res.rows[0];
+      const remoteVersion = parseInt(row.version, 10) || 1;
+      if (remoteVersion > (dbState.version || 0)) {
+        console.log(`[Neon PostgreSQL] Newer state detected from Neon (v${remoteVersion} > v${dbState.version}). Syncing...`);
+        const remoteData = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+        dbState = {
+          bookings: Array.isArray(remoteData.bookings) ? remoteData.bookings : [],
+          reservedProductIds: Array.isArray(remoteData.reservedProductIds) ? remoteData.reservedProductIds : [],
+          productOverrides: remoteData.productOverrides && typeof remoteData.productOverrides === 'object' ? remoteData.productOverrides : {},
+          deletedProductIds: Array.isArray(remoteData.deletedProductIds) ? remoteData.deletedProductIds : [],
+          addedProducts: Array.isArray(remoteData.addedProducts) ? remoteData.addedProducts : [],
+          addedAccessories: Array.isArray(remoteData.addedAccessories) ? remoteData.addedAccessories : [],
+          lastUpdated: Number(row.last_updated) || Date.now(),
+          version: remoteVersion,
+        };
+        saveLocalDiskCache();
+        broadcastDatabaseUpdate();
+        return true;
+      }
+    }
+  } catch (err) {
+    console.error('[Neon PostgreSQL] Error checking remote state:', err);
+    isNeonConnected = false;
+  }
+  return false;
+}
+
+// Initialize Neon table and seed if needed
+async function initNeonDatabase() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS app_database (
+        id VARCHAR(50) PRIMARY KEY,
+        data JSONB NOT NULL,
+        version INT NOT NULL DEFAULT 1,
+        last_updated BIGINT NOT NULL
+      );
+    `);
+    isNeonConnected = true;
+    console.log('[Neon PostgreSQL] Verified table "app_database".');
+
+    const res = await pool.query('SELECT data, version, last_updated FROM app_database WHERE id = $1', ['main']);
+    if (res.rows.length > 0) {
+      const row = res.rows[0];
+      const remoteData = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+      dbState = {
+        bookings: Array.isArray(remoteData.bookings) ? remoteData.bookings : [],
+        reservedProductIds: Array.isArray(remoteData.reservedProductIds) ? remoteData.reservedProductIds : [],
+        productOverrides: remoteData.productOverrides && typeof remoteData.productOverrides === 'object' ? remoteData.productOverrides : {},
+        deletedProductIds: Array.isArray(remoteData.deletedProductIds) ? remoteData.deletedProductIds : [],
+        addedProducts: Array.isArray(remoteData.addedProducts) ? remoteData.addedProducts : [],
+        addedAccessories: Array.isArray(remoteData.addedAccessories) ? remoteData.addedAccessories : [],
+        lastUpdated: Number(row.last_updated) || Date.now(),
+        version: parseInt(row.version, 10) || 1,
+      };
+      saveLocalDiskCache();
+      console.log(`[Neon PostgreSQL] Loaded existing database from Neon (v${dbState.version}).`);
+    } else {
+      // Seed Neon with current state
+      await pool.query(
+        `INSERT INTO app_database (id, data, version, last_updated)
+         VALUES ('main', $1, $2, $3);`,
+        [JSON.stringify(dbState), dbState.version || 1, dbState.lastUpdated || Date.now()]
+      );
+      console.log('[Neon PostgreSQL] Seeded initial database into Neon.');
+    }
+
+    // Start periodic background synchronization with Neon every 3 seconds
+    setInterval(() => {
+      syncFromNeon().catch(() => {});
+    }, 3000);
+  } catch (err) {
+    console.error('[Neon PostgreSQL] Initialization error:', err);
+  }
+}
 
 // Server-Sent Events (SSE) subscribers for instant multi-device sync
 const sseClients = new Set<express.Response>();
@@ -91,6 +217,7 @@ function broadcastDatabaseUpdate() {
     }
   }
 }
+
 
 async function startServer() {
   const app = express();
@@ -114,6 +241,8 @@ async function startServer() {
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'ok',
+      dbProvider: 'neon-postgresql',
+      neonConnected: isNeonConnected,
       version: dbState.version,
       lastUpdated: dbState.lastUpdated,
       connectedClients: sseClients.size,
@@ -122,13 +251,18 @@ async function startServer() {
   });
 
   // GET Current full database state with anti-caching headers
-  app.get('/api/database', (req, res) => {
+  app.get('/api/database', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
+
+    // Check Neon to ensure we have the absolute latest state
+    await syncFromNeon().catch(() => {});
+
     res.json({
       success: true,
       data: dbState,
+      neonConnected: isNeonConnected,
     });
   });
 
@@ -170,7 +304,7 @@ async function startServer() {
   });
 
   // POST update partial or full database
-  app.post('/api/database/update', (req, res) => {
+  app.post('/api/database/update', async (req, res) => {
     try {
       const updates = req.body;
       if (!updates || typeof updates !== 'object') {
@@ -209,8 +343,7 @@ async function startServer() {
       }
 
       if (hasChanges) {
-        saveDatabase();
-        broadcastDatabaseUpdate();
+        await persistState(true);
       }
 
       res.json({
@@ -218,6 +351,7 @@ async function startServer() {
         data: dbState,
         version: dbState.version,
         lastUpdated: dbState.lastUpdated,
+        neonConnected: isNeonConnected,
       });
     } catch (err: any) {
       console.error('[API] Error updating database:', err);
@@ -226,7 +360,7 @@ async function startServer() {
   });
 
   // POST force sync entire database from admin (authoritative upload)
-  app.post('/api/database/sync-all', (req, res) => {
+  app.post('/api/database/sync-all', async (req, res) => {
     try {
       const fullState = req.body;
       if (!fullState || typeof fullState !== 'object') {
@@ -242,16 +376,16 @@ async function startServer() {
       if (Array.isArray(fullState.addedProducts)) dbState.addedProducts = fullState.addedProducts;
       if (Array.isArray(fullState.addedAccessories)) dbState.addedAccessories = fullState.addedAccessories;
 
-      saveDatabase();
-      broadcastDatabaseUpdate();
+      await persistState(true);
 
-      console.log(`[Database] Full sync performed from admin. Version: ${dbState.version}`);
+      console.log(`[Database] Full sync saved to Neon. Version: ${dbState.version}`);
 
       res.json({
         success: true,
         data: dbState,
         version: dbState.version,
         lastUpdated: dbState.lastUpdated,
+        neonConnected: isNeonConnected,
       });
     } catch (err: any) {
       console.error('[API] Error in sync-all:', err);
@@ -274,8 +408,11 @@ async function startServer() {
     });
   }
 
+  // Initialize Neon database before listening
+  await initNeonDatabase();
+
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Jes Fashion Server running on http://0.0.0.0:${PORT}`);
+    console.log(`Jes Fashion Server with Neon PostgreSQL running on http://0.0.0.0:${PORT}`);
   });
 }
 

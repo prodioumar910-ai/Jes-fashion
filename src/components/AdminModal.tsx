@@ -515,12 +515,15 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
             )}
           </div>
           <div className="flex items-center gap-2 text-slate-200">
-            <span className="font-bold text-amber-300">
-              {syncStatus.connected ? 'Synchronisation Cloud Active' : 'Reconnexion au serveur...'}
+            <span className="font-bold text-amber-300 flex items-center gap-1.5">
+              <span>{syncStatus.connected ? 'Base de données Neon PostgreSQL active' : 'Reconnexion à Neon...'}</span>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono uppercase tracking-wider">
+                Neon Cloud DB
+              </span>
             </span>
             <span className="text-slate-400 hidden sm:inline">•</span>
             <span className="text-slate-400 hidden sm:inline">
-              Chaque modification (prix, photos, réservations) s'affiche instantanément sur tous les téléphones des clients.
+              Chaque modification (prix, photos, réservations) est sauvegardée sur votre base Neon et diffusée en direct.
             </span>
           </div>
         </div>

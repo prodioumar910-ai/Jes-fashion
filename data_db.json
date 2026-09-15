@@ -3,11 +3,16 @@
   "reservedProductIds": [],
   "productOverrides": {
     "test": {
-      "title": "test"
+      "title": "test",
+      "neonConnected": true
+    },
+    "p-line1-1": {
+      "lineIndex": 2
     }
   },
   "deletedProductIds": [],
   "addedProducts": [],
   "addedAccessories": [],
-  "lastUpdated": 1789162367190
+  "lastUpdated": 1789468483662,
+  "version": 4
 }
