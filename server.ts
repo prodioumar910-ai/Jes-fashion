@@ -31,7 +31,7 @@ if (DATABASE_URL) {
       ssl: { rejectUnauthorized: false },
       max: 10,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
+      connectionTimeoutMillis: 10000, // Increased for cold starts
     });
 
     pool.on('error', (err) => {
@@ -44,6 +44,7 @@ if (DATABASE_URL) {
 }
 
 let isNeonConnected = false;
+let lastNeonError = '';
 
 // Default initial state
 const defaultDb: DatabaseSchema = {
@@ -120,10 +121,12 @@ async function persistState(triggerBroadcast = true) {
         [JSON.stringify(dbState), dbState.version, dbState.lastUpdated]
       );
       isNeonConnected = true;
+      lastNeonError = '';
       console.log(`[Neon PostgreSQL] State version ${dbState.version} saved successfully.`);
-    } catch (err) {
-      console.error('[Neon PostgreSQL] Failed to save to Neon, cached locally:', err);
+    } catch (err: any) {
+      console.error('[Neon PostgreSQL] Failed to save to Neon:', err);
       isNeonConnected = false;
+      lastNeonError = err.message || 'Error saving to Neon';
     }
   }
 
@@ -308,6 +311,7 @@ async function startServer() {
       success: true,
       data: dbState,
       neonConnected: isNeonConnected,
+      neonError: lastNeonError,
     });
   });
 

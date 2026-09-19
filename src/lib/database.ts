@@ -219,6 +219,7 @@ export interface SyncStatus {
   lastSyncTime: number;
   syncInProgress: boolean;
   version: number;
+  neonError?: string;
 }
 
 let syncStatus: SyncStatus = {
@@ -226,6 +227,7 @@ let syncStatus: SyncStatus = {
   lastSyncTime: Date.now(),
   syncInProgress: false,
   version: 1,
+  neonError: '',
 };
 
 type StatusListener = (status: SyncStatus) => void;
@@ -354,7 +356,8 @@ export const fetchFromServer = async (): Promise<boolean> => {
       if (json && json.data) {
         applyRemoteState(json.data);
         updateSyncStatus({
-          connected: true,
+          connected: json.neonConnected !== false,
+          neonError: json.neonError || '',
           lastSyncTime: Date.now(),
           version: json.data.version || syncStatus.version,
         });
