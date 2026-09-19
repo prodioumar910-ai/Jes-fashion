@@ -536,7 +536,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-center gap-4 ml-auto">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/50 border border-slate-700/50">
+            <div className={`w-2 h-2 rounded-full ${syncStatus.connected ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]'}`} />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              {syncStatus.connected ? 'Serveur Neon Connecté' : 'Erreur Connexion Neon'}
+            </span>
+          </div>
+
           <button
             type="button"
             onClick={handleClearLocalCache}

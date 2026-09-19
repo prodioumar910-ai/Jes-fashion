@@ -278,8 +278,31 @@ async function startServer() {
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
 
-    // Check Neon to ensure we have the absolute latest state
-    await syncFromNeon().catch(() => {});
+    // CRITICAL for Vercel: Always sync from Neon before returning data
+    // Serverless instances don't share memory, so we must fetch from source of truth
+    if (pool) {
+      try {
+        const neonRes = await pool.query('SELECT data, version, last_updated FROM app_database WHERE id = $1', ['main']);
+        if (neonRes.rows.length > 0) {
+          const row = neonRes.rows[0];
+          const remoteData = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+          dbState = {
+            bookings: Array.isArray(remoteData.bookings) ? remoteData.bookings : [],
+            reservedProductIds: Array.isArray(remoteData.reservedProductIds) ? remoteData.reservedProductIds : [],
+            productOverrides: remoteData.productOverrides && typeof remoteData.productOverrides === 'object' ? remoteData.productOverrides : {},
+            deletedProductIds: Array.isArray(remoteData.deletedProductIds) ? remoteData.deletedProductIds : [],
+            addedProducts: Array.isArray(remoteData.addedProducts) ? remoteData.addedProducts : [],
+            addedAccessories: Array.isArray(remoteData.addedAccessories) ? remoteData.addedAccessories : [],
+            lastUpdated: Number(row.last_updated) || Date.now(),
+            version: parseInt(row.version, 10) || 1,
+          };
+          isNeonConnected = true;
+        }
+      } catch (err) {
+        console.error('[Neon PostgreSQL] Fetch error in /api/database:', err);
+        isNeonConnected = false;
+      }
+    }
 
     res.json({
       success: true,
@@ -331,6 +354,29 @@ async function startServer() {
       const updates = req.body;
       if (!updates || typeof updates !== 'object') {
         return res.status(400).json({ success: false, error: 'Invalid payload' });
+      }
+
+      // CRITICAL for Vercel: Fetch latest from Neon FIRST
+      if (pool) {
+        try {
+          const neonRes = await pool.query('SELECT data, version, last_updated FROM app_database WHERE id = $1', ['main']);
+          if (neonRes.rows.length > 0) {
+            const row = neonRes.rows[0];
+            const remoteData = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+            dbState = {
+              bookings: Array.isArray(remoteData.bookings) ? remoteData.bookings : [],
+              reservedProductIds: Array.isArray(remoteData.reservedProductIds) ? remoteData.reservedProductIds : [],
+              productOverrides: remoteData.productOverrides && typeof remoteData.productOverrides === 'object' ? remoteData.productOverrides : {},
+              deletedProductIds: Array.isArray(remoteData.deletedProductIds) ? remoteData.deletedProductIds : [],
+              addedProducts: Array.isArray(remoteData.addedProducts) ? remoteData.addedProducts : [],
+              addedAccessories: Array.isArray(remoteData.addedAccessories) ? remoteData.addedAccessories : [],
+              lastUpdated: Number(row.last_updated) || Date.now(),
+              version: parseInt(row.version, 10) || 1,
+            };
+          }
+        } catch (err) {
+          console.error('[Neon PostgreSQL] Fetch error in /api/database/update:', err);
+        }
       }
 
       let hasChanges = false;
@@ -391,15 +437,16 @@ async function startServer() {
         return res.status(400).json({ success: false, error: 'Invalid payload' });
       }
 
+      // For sync-all, we overwrite EVERYTHING with what the admin sent.
+      // We don't fetch from Neon first because the admin is authoritative.
+      
       console.log('[API] sync-all: Updating memory state...');
-      if (Array.isArray(fullState.bookings)) dbState.bookings = fullState.bookings;
-      if (Array.isArray(fullState.reservedProductIds)) dbState.reservedProductIds = fullState.reservedProductIds;
-      if (fullState.productOverrides && typeof fullState.productOverrides === 'object') {
-        dbState.productOverrides = fullState.productOverrides;
-      }
-      if (Array.isArray(fullState.deletedProductIds)) dbState.deletedProductIds = fullState.deletedProductIds;
-      if (Array.isArray(fullState.addedProducts)) dbState.addedProducts = fullState.addedProducts;
-      if (Array.isArray(fullState.addedAccessories)) dbState.addedAccessories = fullState.addedAccessories;
+      dbState.bookings = Array.isArray(fullState.bookings) ? fullState.bookings : [];
+      dbState.reservedProductIds = Array.isArray(fullState.reservedProductIds) ? fullState.reservedProductIds : [];
+      dbState.productOverrides = fullState.productOverrides && typeof fullState.productOverrides === 'object' ? fullState.productOverrides : {};
+      dbState.deletedProductIds = Array.isArray(fullState.deletedProductIds) ? fullState.deletedProductIds : [];
+      dbState.addedProducts = Array.isArray(fullState.addedProducts) ? fullState.addedProducts : [];
+      dbState.addedAccessories = Array.isArray(fullState.addedAccessories) ? fullState.addedAccessories : [];
 
       console.log('[API] sync-all: Persisting to database...');
       await persistState(true);
