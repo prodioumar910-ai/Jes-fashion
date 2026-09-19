@@ -82,18 +82,22 @@ function loadDatabase(): DatabaseSchema {
 
 let dbState: DatabaseSchema = loadDatabase();
 
-// Atomic local disk cache save
+// Atomic local disk cache save (Optional on read-only filesystems like Vercel)
 function saveLocalDiskCache() {
   try {
     const serialized = JSON.stringify(dbState, null, 2);
+    // On Vercel/Cloud Run, the filesystem is read-only. We only use this as an emergency backup.
+    // If it fails, we ignore it because Neon is our primary source of truth.
+    if (process.env.NODE_ENV === 'production') {
+      console.log('[Database] Running in production, skipping local disk write.');
+      return;
+    }
     fs.writeFileSync(DB_TMP_PATH, serialized, 'utf-8');
     fs.renameSync(DB_TMP_PATH, DB_FILE_PATH);
   } catch (err) {
-    console.error('[Database] Failed to write local cache to disk:', err);
-    try {
-      fs.writeFileSync(DB_FILE_PATH, JSON.stringify(dbState, null, 2), 'utf-8');
-    } catch (fallbackErr) {
-      console.error('[Database] Fallback disk write failed:', fallbackErr);
+    // Silently ignore disk errors in production
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[Database] Failed to write local cache to disk:', err);
     }
   }
 }

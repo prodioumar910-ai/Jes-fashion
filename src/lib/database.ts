@@ -329,8 +329,9 @@ export const forceSyncAllToCloud = async (): Promise<{ success: boolean; message
       broadcastChannel?.postMessage({ type: 'DB_UPDATED' });
       return { success: true, message: 'Tous les modèles, prix et réservations sont synchronisés en direct sur tous les téléphones et ordinateurs des clients !' };
     } else {
+      const json = await res.json();
       updateSyncStatus({ syncInProgress: false, connected: false });
-      return { success: false, message: 'Erreur lors de la synchronisation avec le serveur. Vérifiez votre connexion internet.' };
+      return { success: false, message: `Erreur serveur (${res.status}) : ${json.error || 'Erreur inconnue'}` };
     }
   } catch (err: any) {
     updateSyncStatus({ syncInProgress: false, connected: false });
