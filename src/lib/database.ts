@@ -128,24 +128,12 @@ const hasLocalCustomData = (): boolean => {
 export const applyRemoteState = (remote: Partial<FullDbState>) => {
   if (!remote || typeof remote !== 'object') return;
 
-  // Protect local custom edits if the server is brand new or completely empty
-  const remoteHasContent =
-    (remote.productOverrides && Object.keys(remote.productOverrides).length > 0) ||
-    (Array.isArray(remote.addedProducts) && remote.addedProducts.length > 0) ||
-    (Array.isArray(remote.addedAccessories) && remote.addedAccessories.length > 0) ||
-    (Array.isArray(remote.deletedProductIds) && remote.deletedProductIds.length > 0) ||
-    (Array.isArray(remote.reservedProductIds) && remote.reservedProductIds.length > 0) ||
-    (Array.isArray(remote.bookings) && remote.bookings.length > 0);
-
-  // If server is empty but local has data, push local data to seed server
-  if (!remoteHasContent && hasLocalCustomData()) {
-    console.log('[Sync] Server database is empty. Auto-seeding server with local admin state...');
-    forceSyncAllToCloud();
-    return;
-  }
+  // IMPORTANT: We removed auto-seeding here because it could cause 
+  // clients with old data to overwrite a fresh server.
+  // Seeding should now be done manually via "forceSyncAllToCloud" in Admin.
 
   let changed = false;
-
+  
   // Compare and update Bookings
   if (Array.isArray(remote.bookings)) {
     const currentSerialized = JSON.stringify(memoryDb.bookings);
@@ -291,7 +279,7 @@ export const pushToServer = async (payload: Partial<FullDbState>): Promise<boole
       return false;
     }
   } catch (err) {
-    console.warn('[Sync] Server push failed, will retry:', err);
+    console.warn('[Sync] Server push failed:', err);
     updateSyncStatus({ syncInProgress: false, connected: false });
     return false;
   }
@@ -329,9 +317,20 @@ export const forceSyncAllToCloud = async (): Promise<{ success: boolean; message
       broadcastChannel?.postMessage({ type: 'DB_UPDATED' });
       return { success: true, message: 'Tous les modèles, prix et réservations sont synchronisés en direct sur tous les téléphones et ordinateurs des clients !' };
     } else {
-      const json = await res.json();
       updateSyncStatus({ syncInProgress: false, connected: false });
-      return { success: false, message: `Erreur serveur (${res.status}) : ${json.error || 'Erreur inconnue'}` };
+      let errorMsg = 'Erreur inconnue';
+      try {
+        const text = await res.text();
+        try {
+          const json = JSON.parse(text);
+          errorMsg = json.error || errorMsg;
+        } catch (e) {
+          errorMsg = text.slice(0, 150) || `Status: ${res.status}`;
+        }
+      } catch (e2) {
+        errorMsg = `Erreur lors de la lecture de la réponse (${res.status})`;
+      }
+      return { success: false, message: `Erreur serveur : ${errorMsg}` };
     }
   } catch (err: any) {
     updateSyncStatus({ syncInProgress: false, connected: false });

@@ -177,6 +177,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   const handleForceSync = async () => {
+    if (!confirm('Voulez-vous forcer la diffusion de votre catalogue actuel à tous les clients ? Cela écrasera les données du Cloud par vos données locales.')) return;
     setIsForcingSync(true);
     setForceSyncMessage(null);
     const result = await forceSyncAllToCloud();
@@ -184,7 +185,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
     setForceSyncMessage({ text: result.message, success: result.success });
     setTimeout(() => {
       setForceSyncMessage(null);
-    }, 6000);
+    }, 8000);
+  };
+
+  const handleClearLocalCache = () => {
+    if (confirm('Voulez-vous vider votre cache local et recharger les données depuis le Cloud ? Utile si vous ne voyez pas les changements faits par d\'autres.')) {
+      localStorage.clear();
+      window.location.reload();
+    }
   };
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
@@ -531,13 +539,23 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
         <div className="flex items-center gap-2 ml-auto">
           <button
             type="button"
+            onClick={handleClearLocalCache}
+            className="px-3.5 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all font-semibold flex items-center gap-1.5 cursor-pointer"
+            title="Vider le cache local et recharger depuis le Cloud"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Actualiser les données</span>
+          </button>
+          
+          <button
+            type="button"
             disabled={isForcingSync}
             onClick={handleForceSync}
             className="px-3.5 py-1.5 rounded-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:border-amber-400 transition-all font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             title="Force la synchronisation intégrale de votre catalogue vers le serveur et tous les clients"
           >
-            <RotateCcw className={`w-3.5 h-3.5 ${isForcingSync ? 'animate-spin' : ''}`} />
-            <span>{isForcingSync ? 'Diffusion en cours...' : 'Forcer la synchronisation globale'}</span>
+            <Database className={`w-3.5 h-3.5 ${isForcingSync ? 'animate-bounce' : ''}`} />
+            <span>{isForcingSync ? 'Synchronisation...' : 'Pousser vers le Cloud'}</span>
           </button>
         </div>
       </div>

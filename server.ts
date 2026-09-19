@@ -132,7 +132,7 @@ async function persistState(triggerBroadcast = true) {
   }
 }
 
-// Fetch latest state from Neon if version is newer
+// Fetch latest state from Neon if version is different or timestamp is newer
 async function syncFromNeon(): Promise<boolean> {
   if (!pool) return false;
   try {
@@ -141,8 +141,12 @@ async function syncFromNeon(): Promise<boolean> {
     if (res.rows.length > 0) {
       const row = res.rows[0];
       const remoteVersion = parseInt(row.version, 10) || 1;
-      if (remoteVersion > (dbState.version || 0)) {
-        console.log(`[Neon PostgreSQL] Newer state detected from Neon (v${remoteVersion} > v${dbState.version}). Syncing...`);
+      const remoteLastUpdated = Number(row.last_updated) || 0;
+      
+      // If remote is different (higher version OR newer timestamp), we sync it.
+      // This is more robust than just checking for "greater than" version.
+      if (remoteVersion !== (dbState.version || 0) || remoteLastUpdated > (dbState.lastUpdated || 0)) {
+        console.log(`[Neon PostgreSQL] Synchronizing memory state with Neon (v${remoteVersion}, last_updated: ${remoteLastUpdated})`);
         const remoteData = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
         dbState = {
           bookings: Array.isArray(remoteData.bookings) ? remoteData.bookings : [],
@@ -151,7 +155,7 @@ async function syncFromNeon(): Promise<boolean> {
           deletedProductIds: Array.isArray(remoteData.deletedProductIds) ? remoteData.deletedProductIds : [],
           addedProducts: Array.isArray(remoteData.addedProducts) ? remoteData.addedProducts : [],
           addedAccessories: Array.isArray(remoteData.addedAccessories) ? remoteData.addedAccessories : [],
-          lastUpdated: Number(row.last_updated) || Date.now(),
+          lastUpdated: remoteLastUpdated,
           version: remoteVersion,
         };
         saveLocalDiskCache();
@@ -379,12 +383,15 @@ async function startServer() {
 
   // POST force sync entire database from admin (authoritative upload)
   app.post('/api/database/sync-all', async (req, res) => {
+    console.log('[API] Received sync-all request');
     try {
       const fullState = req.body;
       if (!fullState || typeof fullState !== 'object') {
+        console.warn('[API] sync-all: Invalid payload received');
         return res.status(400).json({ success: false, error: 'Invalid payload' });
       }
 
+      console.log('[API] sync-all: Updating memory state...');
       if (Array.isArray(fullState.bookings)) dbState.bookings = fullState.bookings;
       if (Array.isArray(fullState.reservedProductIds)) dbState.reservedProductIds = fullState.reservedProductIds;
       if (fullState.productOverrides && typeof fullState.productOverrides === 'object') {
@@ -394,9 +401,10 @@ async function startServer() {
       if (Array.isArray(fullState.addedProducts)) dbState.addedProducts = fullState.addedProducts;
       if (Array.isArray(fullState.addedAccessories)) dbState.addedAccessories = fullState.addedAccessories;
 
+      console.log('[API] sync-all: Persisting to database...');
       await persistState(true);
 
-      console.log(`[Database] Full sync saved to Neon. Version: ${dbState.version}`);
+      console.log(`[API] sync-all: SUCCESS. Version: ${dbState.version}, Neon: ${isNeonConnected}`);
 
       res.json({
         success: true,
@@ -406,8 +414,14 @@ async function startServer() {
         neonConnected: isNeonConnected,
       });
     } catch (err: any) {
-      console.error('[API] Error in sync-all:', err);
-      res.status(500).json({ success: false, error: err.message });
+      console.error('[API] CRITICAL error in sync-all:', err);
+      // Ensure we always return JSON
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          success: false, 
+          error: `Internal server error: ${err.message || 'Unknown error'}` 
+        });
+      }
     }
   });
 
