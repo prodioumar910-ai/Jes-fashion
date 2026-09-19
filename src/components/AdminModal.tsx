@@ -537,15 +537,22 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
         </div>
 
         <div className="flex items-center gap-4 ml-auto">
-          <div className="flex flex-col items-end gap-0.5">
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/50 border border-slate-700/50">
-              <div className={`w-2 h-2 rounded-full ${syncStatus.connected ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]'}`} />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                {syncStatus.connected ? 'Serveur Neon Connecté' : 'Erreur Connexion Neon'}
+          <div className="flex flex-col items-end gap-1">
+            <div 
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-full border transition-all ${
+                syncStatus.connected 
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+              }`}
+              title={syncStatus.neonError || (syncStatus.connected ? 'La base de données Neon est opérationnelle' : 'La base de données Neon est déconnectée')}
+            >
+              <div className={`w-2.5 h-2.5 rounded-full ${syncStatus.connected ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.6)]' : 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.6)]'}`} />
+              <span className="text-[11px] font-black uppercase tracking-widest">
+                {syncStatus.connected ? 'Neon: Connecté' : 'Neon: Hors Ligne'}
               </span>
             </div>
-            {!syncStatus.connected && syncStatus.neonError && (
-              <span className="text-[9px] text-rose-400 font-medium px-2 max-w-[200px] truncate text-right">
+            {syncStatus.neonError && (
+              <span className="text-[9px] text-rose-400 font-bold px-2 max-w-[200px] truncate text-right bg-rose-950/30 rounded py-0.5 border border-rose-900/30">
                 {syncStatus.neonError}
               </span>
             )}
@@ -553,12 +560,17 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
 
           <button
             type="button"
-            onClick={handleClearLocalCache}
-            className="px-3.5 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all font-semibold flex items-center gap-1.5 cursor-pointer"
-            title="Vider le cache local et recharger depuis le Cloud"
+            onClick={async () => {
+              const success = await fetchFromServer();
+              if (success) {
+                // Show a small temporary success feedback if needed
+              }
+            }}
+            className="px-3.5 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all font-bold flex items-center gap-2 cursor-pointer shadow-sm"
+            title="Tester et rafraîchir la connexion Neon"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Actualiser les données</span>
+            <span className="text-[11px]">Actualiser</span>
           </button>
           
           <button

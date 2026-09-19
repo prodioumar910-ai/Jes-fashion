@@ -381,74 +381,26 @@ const initRealtimeSync = () => {
   // 1. Initial snapshot fetch immediately
   fetchFromServer();
 
-  // 2. Setup Server-Sent Events for instant live broadcast (< 50ms)
-  const connectSSE = () => {
-    try {
-      if (sseSource) {
-        sseSource.close();
-      }
-      sseSource = new EventSource('/api/database/stream');
-
-      sseSource.onopen = () => {
-        updateSyncStatus({ connected: true });
-      };
-
-      sseSource.onmessage = (event) => {
-        try {
-          if (!event.data || event.data.startsWith(':')) return;
-          const parsed = JSON.parse(event.data);
-          if (parsed) {
-            applyRemoteState(parsed);
-            updateSyncStatus({
-              connected: true,
-              lastSyncTime: Date.now(),
-              version: parsed.version || syncStatus.version,
-            });
-          }
-        } catch (err) {
-          console.error('[SSE] Parse error:', err);
-        }
-      };
-
-      sseSource.onerror = () => {
-        if (sseSource) {
-          sseSource.close();
-          sseSource = null;
-        }
-        updateSyncStatus({ connected: false });
-        // Reconnect after brief backoff
-        setTimeout(connectSSE, 3000);
-      };
-    } catch (e) {
-      console.warn('[SSE] EventSource init error:', e);
-    }
-  };
-
-  connectSSE();
-
-  // 3. Periodic polling every 4 seconds as a guaranteed fallback on mobile network transitions
+  // 2. Periodic polling every 4 seconds as a guaranteed fallback on mobile network transitions
+  // This is the primary sync engine for Vercel/Serverless compatibility
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(() => {
     fetchFromServer();
   }, 4000);
 
-  // 4. Instant wake-up sync when user unlocks phone or switches back to tab
+  // 3. Instant wake-up sync when user unlocks phone or switches back to tab
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         fetchFromServer();
-        if (!sseSource || sseSource.readyState === EventSource.CLOSED) {
-          connectSSE();
-        }
       }
     });
   }
 
-  // 5. Window focus & online listeners
+  // 4. Window focus & online listeners
   window.addEventListener('focus', () => fetchFromServer());
   window.addEventListener('online', () => {
     fetchFromServer();
-    connectSSE();
   });
 };
 
