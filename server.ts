@@ -20,21 +20,28 @@ interface DatabaseSchema {
 const DB_FILE_PATH = path.join(process.cwd(), 'data_db.json');
 const DB_TMP_PATH = path.join(process.cwd(), 'data_db.json.tmp');
 
-// Neon PostgreSQL Connection
-const NEON_DEFAULT_URL = 'postgresql://neondb_owner:npg_n8xOQ4YCMpIu@ep-nameless-mouse-a5ajbdsx-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require';
-const DATABASE_URL = process.env.DATABASE_URL || NEON_DEFAULT_URL;
+// Neon PostgreSQL Connection (configured via process.env.DATABASE_URL)
+const DATABASE_URL = process.env.DATABASE_URL;
 
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-});
+let pool: pg.Pool | null = null;
+if (DATABASE_URL) {
+  try {
+    pool = new Pool({
+      connectionString: DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+    });
 
-pool.on('error', (err) => {
-  console.error('[Neon PostgreSQL] Unexpected error on idle client:', err);
-});
+    pool.on('error', (err) => {
+      console.error('[Neon PostgreSQL] Unexpected error on idle client:', err);
+    });
+  } catch (err) {
+    console.error('[Neon PostgreSQL] Error initializing connection pool:', err);
+    pool = null;
+  }
+}
 
 let isNeonConnected = false;
 
@@ -97,21 +104,23 @@ async function persistState(triggerBroadcast = true) {
   dbState.version = (dbState.version || 0) + 1;
   saveLocalDiskCache();
 
-  try {
-    await pool.query(
-      `INSERT INTO app_database (id, data, version, last_updated)
-       VALUES ('main', $1, $2, $3)
-       ON CONFLICT (id) DO UPDATE
-       SET data = EXCLUDED.data,
-           version = EXCLUDED.version,
-           last_updated = EXCLUDED.last_updated;`,
-      [JSON.stringify(dbState), dbState.version, dbState.lastUpdated]
-    );
-    isNeonConnected = true;
-    console.log(`[Neon PostgreSQL] State version ${dbState.version} saved successfully.`);
-  } catch (err) {
-    console.error('[Neon PostgreSQL] Failed to save to Neon, cached locally:', err);
-    isNeonConnected = false;
+  if (pool) {
+    try {
+      await pool.query(
+        `INSERT INTO app_database (id, data, version, last_updated)
+         VALUES ('main', $1, $2, $3)
+         ON CONFLICT (id) DO UPDATE
+         SET data = EXCLUDED.data,
+             version = EXCLUDED.version,
+             last_updated = EXCLUDED.last_updated;`,
+        [JSON.stringify(dbState), dbState.version, dbState.lastUpdated]
+      );
+      isNeonConnected = true;
+      console.log(`[Neon PostgreSQL] State version ${dbState.version} saved successfully.`);
+    } catch (err) {
+      console.error('[Neon PostgreSQL] Failed to save to Neon, cached locally:', err);
+      isNeonConnected = false;
+    }
   }
 
   if (triggerBroadcast) {
@@ -121,6 +130,7 @@ async function persistState(triggerBroadcast = true) {
 
 // Fetch latest state from Neon if version is newer
 async function syncFromNeon(): Promise<boolean> {
+  if (!pool) return false;
   try {
     const res = await pool.query('SELECT data, version, last_updated FROM app_database WHERE id = $1', ['main']);
     isNeonConnected = true;
@@ -154,6 +164,10 @@ async function syncFromNeon(): Promise<boolean> {
 
 // Initialize Neon table and seed if needed
 async function initNeonDatabase() {
+  if (!pool) {
+    console.log('[Neon PostgreSQL] No DATABASE_URL provided. Operating in local storage mode.');
+    return;
+  }
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS app_database (
